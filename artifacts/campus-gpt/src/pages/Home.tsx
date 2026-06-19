@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useGetDailyDigest, useGetUserProfile, useCreateThread } from '@workspace/api-client-react';
-import { Clock, CheckCircle2, ChevronRight, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronRight, Sparkles, Phone } from 'lucide-react';
 import { Composer } from '../components/chat/Composer';
+import { VoiceCallModal } from '../components/voice/VoiceCallModal';
 import { useLocation } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
 
 const SUGGESTIONS = [
   "How do I register my courses on MIS Web?",
@@ -15,20 +18,24 @@ export default function Home() {
   const { data: digest } = useGetDailyDigest();
   const [, setLocation] = useLocation();
   const createThread = useCreateThread();
+  const queryClient = useQueryClient();
+  const [voiceOpen, setVoiceOpen] = useState(false);
+
+  const createAndGoToChat = async (content: string): Promise<number> => {
+    const thread = await createThread.mutateAsync({
+      data: { title: content.slice(0, 60), space: 'academic' },
+    });
+    queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
+    return thread.id;
+  };
 
   const handleSend = async (content: string) => {
     try {
-      const thread = await createThread.mutateAsync({
-        data: { title: content.slice(0, 60), space: 'academic' }
-      });
-      setLocation(`/chat/${thread.id}`);
-    } catch {
-      setLocation('/chat/1');
+      const id = await createAndGoToChat(content);
+      setLocation(`/chat/${id}`);
+    } catch (err) {
+      console.error('Failed to create thread:', err);
     }
-  };
-
-  const handleSuggestion = (s: string) => {
-    handleSend(s);
   };
 
   const hour = new Date().getHours();
@@ -49,12 +56,27 @@ export default function Home() {
             <p className="text-base md:text-lg text-text-secondary">Your campus, in conversation.</p>
           </div>
 
+          {/* Voice call shortcut */}
+          <button
+            onClick={() => setVoiceOpen(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-full bg-brand-500 flex items-center justify-center shrink-0">
+              <Phone className="w-4 h-4 text-white" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-brand-700">Talk to CampusGPT</p>
+              <p className="text-xs text-brand-500">Speak your question — AI will answer aloud</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-brand-400 ml-auto group-hover:translate-x-0.5 transition-transform" />
+          </button>
+
           {/* Quick suggestions */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
             {SUGGESTIONS.map(s => (
               <button
                 key={s}
-                onClick={() => handleSuggestion(s)}
+                onClick={() => handleSend(s)}
                 className="text-left px-4 py-3 rounded-xl border border-border bg-card hover:bg-background hover:border-brand-500 transition-colors text-text-secondary hover:text-brand-600 text-sm font-medium shadow-sm active:scale-[0.98]"
               >
                 {s}
@@ -112,14 +134,29 @@ export default function Home() {
               </div>
             </div>
           )}
-
         </div>
       </div>
 
       {/* Floating composer */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/95 to-transparent pt-10 pb-14 md:pb-0">
-        <Composer onSend={handleSend} placeholder="Ask me anything about UG campus..." />
+        <Composer
+          onSend={handleSend}
+          placeholder="Ask me anything about UG campus..."
+          onOpenVoiceCall={() => setVoiceOpen(true)}
+        />
       </div>
+
+      {voiceOpen && (
+        <VoiceCallModal
+          threadId={null}
+          onClose={() => setVoiceOpen(false)}
+          onCreateThread={async () => {
+            const id = await createAndGoToChat('Voice chat');
+            setLocation(`/chat/${id}`);
+            return id;
+          }}
+        />
+      )}
     </div>
   );
 }

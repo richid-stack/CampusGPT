@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCreateMessage, MessageInputRole } from '@workspace/api-client-react';
 import { useAppStore } from '../store/appStore';
 
 export function useChat(threadId: number | null) {
@@ -11,11 +10,11 @@ export function useChat(threadId: number | null) {
   const [streamedModel, setStreamedModel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
-  const createMessage = useCreateMessage();
   const { setStreamingMessageId } = useAppStore();
 
-  const sendMessage = useCallback(async (content: string) => {
-    if (!threadId) return;
+  const sendMessage = useCallback(async (content: string, overrideThreadId?: number) => {
+    const tid = overrideThreadId ?? threadId;
+    if (!tid) return;
 
     setIsThinking(true);
     setCurrentToolChip("🔎 Searching knowledge base...");
@@ -26,7 +25,7 @@ export function useChat(threadId: number | null) {
       const ac = new AbortController();
       abortRef.current = ac;
 
-      const res = await fetch(`/api/threads/${threadId}/chat`, {
+      const res = await fetch(`/api/threads/${tid}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
@@ -39,12 +38,10 @@ export function useChat(threadId: number | null) {
 
       setIsThinking(false);
       setCurrentToolChip("📝 Composing response...");
-
-      // Small delay before streaming so the tool chip is visible
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 300));
       setCurrentToolChip(null);
       setIsStreaming(true);
-      setStreamingMessageId(threadId);
+      setStreamingMessageId(tid);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -75,13 +72,11 @@ export function useChat(threadId: number | null) {
               setStreamedContent(prev => prev + "\n\n⚠️ Stream error. Please try again.");
               break;
             }
-
             if (payload.delta) {
               setStreamedContent(prev => prev + payload.delta);
             }
-
-            if (payload.done) {
-              if (payload.model) setStreamedModel(payload.model);
+            if (payload.done && payload.model) {
+              setStreamedModel(payload.model);
             }
           } catch {
             // skip malformed line
@@ -90,9 +85,6 @@ export function useChat(threadId: number | null) {
       }
     } catch (err: any) {
       if (err?.name !== "AbortError") {
-        setIsThinking(false);
-        setCurrentToolChip(null);
-        setIsStreaming(false);
         setStreamedContent("⚠️ Failed to get a response. Please check your connection and try again.");
       }
     } finally {
@@ -102,12 +94,12 @@ export function useChat(threadId: number | null) {
       setStreamingMessageId(null);
       abortRef.current = null;
 
-      // Refresh the message list so the saved assistant message appears
-      queryClient.invalidateQueries({
-        queryKey: ['/threads/', threadId, '/messages']
-      });
-      // Also do a broad invalidation as fallback
-      queryClient.invalidateQueries({ predicate: q => (q.queryKey[0] as string)?.includes?.('messages') });
+      const finalTid = overrideThreadId ?? threadId;
+      if (finalTid) {
+        queryClient.invalidateQueries({ queryKey: [`/api/threads/${finalTid}/messages`] });
+        queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
+        queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).includes('messages') });
+      }
     }
   }, [threadId, setStreamingMessageId, queryClient]);
 
@@ -116,18 +108,8 @@ export function useChat(threadId: number | null) {
   }, []);
 
   useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
+    return () => { abortRef.current?.abort(); };
   }, []);
 
-  return {
-    sendMessage,
-    stopStreaming,
-    isThinking,
-    currentToolChip,
-    isStreaming,
-    streamedContent,
-    streamedModel,
-  };
+  return { sendMessage, stopStreaming, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel };
 }
