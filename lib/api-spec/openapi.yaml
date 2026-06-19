@@ -3,20 +3,37 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CampusGPT API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: threads
+    description: Chat thread operations
+  - name: messages
+    description: Message operations
+  - name: documents
+    description: Document operations
+  - name: timetable
+    description: Timetable operations
+  - name: events
+    description: Campus events
+  - name: notifications
+    description: Notifications and reminders
+  - name: planner
+    description: Academic planner / deadlines
+  - name: user
+    description: User profile
+  - name: digest
+    description: Daily brief digest
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +41,434 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Threads ─────────────────────────────────────────────────
+  /threads:
+    get:
+      operationId: listThreads
+      tags: [threads]
+      summary: List all chat threads
+      parameters:
+        - name: pinned
+          in: query
+          schema:
+            type: boolean
+        - name: space
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+    post:
+      operationId: createThread
+      tags: [threads]
+      summary: Create a new chat thread
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+
+  /threads/{threadId}:
+    get:
+      operationId: getThread
+      tags: [threads]
+      summary: Get a thread by ID
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateThread
+      tags: [threads]
+      summary: Update a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadUpdate"
+      responses:
+        "200":
+          description: Updated thread
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thread"
+    delete:
+      operationId: deleteThread
+      tags: [threads]
+      summary: Delete a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /threads/recent:
+    get:
+      operationId: getRecentThreads
+      tags: [threads]
+      summary: Get recently active threads (last 5)
+      responses:
+        "200":
+          description: Recent threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+
+  /threads/pinned:
+    get:
+      operationId: getPinnedThreads
+      tags: [threads]
+      summary: Get pinned threads
+      responses:
+        "200":
+          description: Pinned threads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Thread"
+
+  # ─── Messages ─────────────────────────────────────────────────
+  /threads/{threadId}/messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List messages in a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: createMessage
+      tags: [messages]
+      summary: Send a message to a thread
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ─── Documents ─────────────────────────────────────────────────
+  /documents:
+    get:
+      operationId: listDocuments
+      tags: [documents]
+      summary: List uploaded documents
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+    post:
+      operationId: createDocument
+      tags: [documents]
+      summary: Register a new document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+
+  /documents/{documentId}:
+    delete:
+      operationId: deleteDocument
+      tags: [documents]
+      summary: Delete a document
+      parameters:
+        - name: documentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── Timetable ─────────────────────────────────────────────────
+  /timetable:
+    get:
+      operationId: listTimetableEntries
+      tags: [timetable]
+      summary: List timetable entries for the current semester
+      responses:
+        "200":
+          description: Timetable entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimetableEntry"
+
+  /timetable/today:
+    get:
+      operationId: getTodaySchedule
+      tags: [timetable]
+      summary: Get today's schedule
+      responses:
+        "200":
+          description: Today's entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimetableEntry"
+
+  # ─── Events ─────────────────────────────────────────────────
+  /events:
+    get:
+      operationId: listEvents
+      tags: [events]
+      summary: List campus events
+      parameters:
+        - name: personalized
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+
+  # ─── Notifications ─────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/{notificationId}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  # ─── Planner / Deadlines ─────────────────────────────────────────────────
+  /planner:
+    get:
+      operationId: listPlannerItems
+      tags: [planner]
+      summary: List academic planner items (deadlines, tasks)
+      responses:
+        "200":
+          description: Planner items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlannerItem"
+    post:
+      operationId: createPlannerItem
+      tags: [planner]
+      summary: Add a planner item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannerItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerItem"
+
+  /planner/upcoming:
+    get:
+      operationId: getUpcomingDeadlines
+      tags: [planner]
+      summary: Get upcoming deadlines in the next 7 days
+      responses:
+        "200":
+          description: Upcoming items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlannerItem"
+
+  /planner/{itemId}:
+    patch:
+      operationId: updatePlannerItem
+      tags: [planner]
+      summary: Update a planner item (e.g. mark done)
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannerItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerItem"
+
+  # ─── User profile ─────────────────────────────────────────────────
+  /user/profile:
+    get:
+      operationId: getUserProfile
+      tags: [user]
+      summary: Get the current user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateUserProfile
+      tags: [user]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  # ─── Daily digest ─────────────────────────────────────────────────
+  /digest/today:
+    get:
+      operationId: getDailyDigest
+      tags: [digest]
+      summary: Get today's personalized daily brief
+      responses:
+        "200":
+          description: Daily digest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyDigest"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +479,318 @@ components:
       required:
         - status
 
+    Thread:
+      type: object
+      required: [id, title, space, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        space:
+          type: string
+          enum: [my_campus, academic, career, wellness, shared]
+        pinned:
+          type: boolean
+        saved:
+          type: boolean
+        messageCount:
+          type: integer
+        lastMessageAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    ThreadInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        space:
+          type: string
+          enum: [my_campus, academic, career, wellness, shared]
+
+    ThreadUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        pinned:
+          type: boolean
+        saved:
+          type: boolean
+        space:
+          type: string
+
+    Message:
+      type: object
+      required: [id, threadId, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+        threadId:
+          type: integer
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        model:
+          type: ["string", "null"]
+        thinkingSeconds:
+          type: ["integer", "null"]
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Citation"
+        followUps:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+
+    MessageInput:
+      type: object
+      required: [content, role]
+      properties:
+        content:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant]
+
+    Citation:
+      type: object
+      required: [index, title, url]
+      properties:
+        index:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+        excerpt:
+          type: ["string", "null"]
+        domain:
+          type: ["string", "null"]
+
+    Document:
+      type: object
+      required: [id, name, type, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        pageCount:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [uploading, parsing, indexing, ready, failed]
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+
+    DocumentInput:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        pageCount:
+          type: integer
+
+    TimetableEntry:
+      type: object
+      required: [id, moduleCode, moduleName, type, dayOfWeek, startTime, endTime, venue]
+      properties:
+        id:
+          type: integer
+        moduleCode:
+          type: string
+        moduleName:
+          type: string
+        type:
+          type: string
+          enum: [lecture, tutorial, lab, seminar, exam]
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        venue:
+          type: string
+        color:
+          type: ["string", "null"]
+
+    Event:
+      type: object
+      required: [id, title, startAt, location]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        startAt:
+          type: string
+        endAt:
+          type: ["string", "null"]
+        location:
+          type: string
+        category:
+          type: string
+        personalized:
+          type: boolean
+        rsvped:
+          type: boolean
+
+    Notification:
+      type: object
+      required: [id, title, body, type, read, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        type:
+          type: string
+          enum: [deadline, bidding, system, event, reminder]
+        read:
+          type: boolean
+        urgency:
+          type: string
+          enum: [low, medium, high]
+        createdAt:
+          type: string
+
+    PlannerItem:
+      type: object
+      required: [id, title, dueAt, moduleCode, type, done]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        dueAt:
+          type: string
+        moduleCode:
+          type: string
+        type:
+          type: string
+          enum: [assignment, quiz, exam, project, reading, other]
+        done:
+          type: boolean
+        urgency:
+          type: string
+          enum: [low, medium, high]
+        notes:
+          type: ["string", "null"]
+
+    PlannerItemInput:
+      type: object
+      required: [title, dueAt, moduleCode, type]
+      properties:
+        title:
+          type: string
+        dueAt:
+          type: string
+        moduleCode:
+          type: string
+        type:
+          type: string
+        urgency:
+          type: string
+        notes:
+          type: string
+
+    PlannerItemUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        dueAt:
+          type: string
+        done:
+          type: boolean
+        urgency:
+          type: string
+        notes:
+          type: string
+
+    UserProfile:
+      type: object
+      required: [id, name, email, year, degree, faculty]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        year:
+          type: integer
+        degree:
+          type: string
+        faculty:
+          type: string
+        hall:
+          type: ["string", "null"]
+        advisor:
+          type: ["string", "null"]
+        interests:
+          type: array
+          items:
+            type: string
+        avatarUrl:
+          type: ["string", "null"]
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        hall:
+          type: string
+        interests:
+          type: array
+          items:
+            type: string
+
+    DailyDigest:
+      type: object
+      required: [greeting, date, todayEntries, upcomingDeadlines, headsUp]
+      properties:
+        greeting:
+          type: string
+        date:
+          type: string
+        todayEntries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimetableEntry"
+        upcomingDeadlines:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannerItem"
+        headsUp:
+          type: array
+          items:
+            type: string
+        weather:
+          type: ["string", "null"]

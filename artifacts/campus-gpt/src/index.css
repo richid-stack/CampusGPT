@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--brand-500);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-card-border: var(--border);
+
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--foreground);
+  --color-popover-border: var(--border);
+
+  --color-primary: var(--brand-500);
+  --color-primary-foreground: #FFFFFF;
+
+  --color-secondary: var(--sidebar);
+  --color-secondary-foreground: var(--text-primary);
+
+  --color-muted: var(--sidebar);
+  --color-muted-foreground: var(--text-secondary);
+
+  --color-accent: var(--accent-warm);
+  --color-accent-foreground: #FFFFFF;
+
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: #FFFFFF;
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--text-secondary);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-primary: var(--brand-500);
+  --color-sidebar-primary-foreground: #FFFFFF;
+  --color-sidebar-accent: var(--card);
+  --color-sidebar-accent-foreground: var(--text-primary);
+  --color-sidebar-ring: var(--brand-500);
+
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+:root {
+  --background: #FFFFFF;
+  --sidebar: #F8FAFB;
+  --card: #F1F4F6;
+  
+  --text-primary: #0B0D10;
+  --text-secondary: #525866;
+  --text-tertiary: #8C95A4;
+  --foreground: #0B0D10;
+  
+  --border: #E5E8EC;
+  
+  --brand-50: #EFF6FF;
+  --brand-500: #2E6BFF;
+  --brand-600: #1E54E6;
+  
+  --accent-warm: #FFB454;
+  
+  --success: #1BAE7E;
+  --warning: #E4A11B;
+  --danger: #E5484D;
+  
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #0B0D10;
+  --sidebar: #131518;
+  --card: #1A1D21;
+  
+  --text-primary: #F8FAFB;
+  --text-secondary: #A0A5B1;
+  --text-tertiary: #6B7280;
+  --foreground: #F8FAFB;
+  
+  --border: #2A2E35;
+  
+  --brand-50: #1A2847;
+  --brand-500: #5C8BFF;
+  --brand-600: #749CFF;
+  
+  --accent-warm: #FFC57A;
+  
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+.animate-in {
+  animation: animate-in 0.2s ease-out;
+}
+@keyframes animate-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.blink {
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
