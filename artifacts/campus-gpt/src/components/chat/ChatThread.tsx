@@ -11,9 +11,10 @@ interface ChatThreadProps {
   currentToolChip: string | null;
   isStreaming: boolean;
   streamedContent: string;
+  streamedModel?: string | null;
 }
 
-export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming, streamedContent }: ChatThreadProps) {
+export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel }: ChatThreadProps) {
   const { data: messages, isLoading } = useListMessages(threadId);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -26,26 +27,38 @@ export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming,
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-tertiary">Loading messages...</div>
+        <div className="text-text-tertiary text-sm">Loading messages...</div>
       </div>
     );
   }
 
+  const savedMessages = messages ?? [];
+
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6" ref={scrollRef}>
-      <div className="max-w-3xl mx-auto flex flex-col gap-6">
-        {messages?.map((msg) => (
-          msg.role === 'user' 
+    <div className="flex-1 overflow-y-auto px-2 md:px-4 py-4 md:py-6" ref={scrollRef}>
+      <div className="max-w-3xl mx-auto flex flex-col gap-4 md:gap-6">
+
+        {savedMessages.length === 0 && !isThinking && !isStreaming && (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-500 to-indigo-500 opacity-20" />
+            <p className="text-text-tertiary text-sm">Send a message to start the conversation</p>
+          </div>
+        )}
+
+        {savedMessages.map((msg) => (
+          msg.role === 'user'
             ? <MessageBubble key={msg.id} message={msg} />
             : <AssistantMessage key={msg.id} message={msg} />
         ))}
-        
+
         {isThinking && <ThinkingIndicator />}
-        {currentToolChip && <ToolChip text={currentToolChip} />}
+        {currentToolChip && !isStreaming && <ToolChip text={currentToolChip} />}
+
         {isStreaming && (
-          <AssistantMessage 
-            message={{ content: streamedContent, role: 'assistant' } as any} 
-            isStreaming={true} 
+          <AssistantMessage
+            message={{ content: streamedContent, role: 'assistant' } as any}
+            isStreaming={true}
+            model={streamedModel}
           />
         )}
       </div>

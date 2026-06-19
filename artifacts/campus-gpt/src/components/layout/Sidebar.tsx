@@ -7,15 +7,18 @@ import {
   Calendar, 
   Bell, 
   Settings, 
-  Mic, 
-  Map, 
   Moon, 
   Sun,
-  LayoutDashboard
+  LayoutDashboard,
+  X
 } from 'lucide-react';
 import { useAppStore } from '../../store/appStore';
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavClick?: () => void;
+}
+
+export function Sidebar({ onNavClick }: SidebarProps) {
   const [location] = useLocation();
   const { sidebarCollapsed, theme, setTheme } = useAppStore();
 
@@ -38,11 +41,22 @@ export function Sidebar() {
       }`}
     >
       {/* Header */}
-      <div className="p-4 flex items-center h-[72px]">
+      <div className="p-4 flex items-center h-[64px] shrink-0">
         {!sidebarCollapsed && (
-          <span className="font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-brand-500 to-indigo-500 flex-1">
-            CampusGPT
-          </span>
+          <>
+            <span className="font-semibold text-lg bg-clip-text text-transparent bg-gradient-to-r from-brand-500 to-indigo-500 flex-1">
+              CampusGPT
+            </span>
+            {onNavClick && (
+              <button
+                onClick={onNavClick}
+                className="p-1.5 rounded-lg hover:bg-sidebar-accent transition-colors text-text-tertiary ml-2"
+                aria-label="Close sidebar"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </>
         )}
         {sidebarCollapsed && (
           <div className="w-full flex justify-center">
@@ -54,7 +68,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-y-auto py-2 flex flex-col gap-6">
         {/* Actions */}
         <div className="px-3 flex flex-col gap-1">
-          <Link href="/chat/new">
+          <Link href="/chat/new" onClick={onNavClick}>
             <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent cursor-pointer text-sm font-medium">
               <MessageSquarePlus className="w-4 h-4 text-sidebar-foreground" />
               {!sidebarCollapsed && <span>New Chat</span>}
@@ -71,15 +85,25 @@ export function Sidebar() {
           <>
             <div className="px-6 flex flex-col gap-1">
               <h3 className="text-xs font-semibold text-text-tertiary mb-2 uppercase tracking-wider">Pinned</h3>
-              <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Capstone planning</div>
-              <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Internship search</div>
+              <Link href="/chat/1" onClick={onNavClick}>
+                <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Capstone planning</div>
+              </Link>
+              <Link href="/chat/2" onClick={onNavClick}>
+                <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Internship search</div>
+              </Link>
             </div>
 
             <div className="px-6 flex flex-col gap-1">
               <h3 className="text-xs font-semibold text-text-tertiary mb-2 uppercase tracking-wider">Recent</h3>
-              <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Differential eq HW</div>
-              <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Hall reapplication</div>
-              <div className="text-sm text-text-tertiary hover:text-text-primary cursor-pointer py-1 mt-1">See all →</div>
+              <Link href="/chat/3" onClick={onNavClick}>
+                <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Differential eq HW</div>
+              </Link>
+              <Link href="/chat/4" onClick={onNavClick}>
+                <div className="text-sm text-sidebar-foreground hover:text-text-primary cursor-pointer py-1 truncate">• Hall reapplication</div>
+              </Link>
+              <Link href="/chat/new" onClick={onNavClick}>
+                <div className="text-sm text-text-tertiary hover:text-text-primary cursor-pointer py-1 mt-1">See all →</div>
+              </Link>
             </div>
           </>
         )}
@@ -88,8 +112,8 @@ export function Sidebar() {
         <div className="px-3 flex flex-col gap-1">
           {!sidebarCollapsed && <h3 className="text-xs font-semibold text-text-tertiary px-3 mb-2 uppercase tracking-wider">My Campus</h3>}
           {navItems.map(item => (
-            <Link key={item.href} href={item.href}>
-              <div className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer text-sm font-medium ${
+            <Link key={item.href} href={item.href} onClick={onNavClick}>
+              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer text-sm font-medium ${
                 location === item.href ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-sidebar-accent text-sidebar-foreground'
               }`}>
                 <item.icon className="w-4 h-4 shrink-0" />
@@ -110,8 +134,8 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border flex flex-col gap-1">
-        <Link href="/settings">
+      <div className="p-3 border-t border-sidebar-border flex flex-col gap-1 shrink-0">
+        <Link href="/settings" onClick={onNavClick}>
           <div className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent cursor-pointer text-sm font-medium text-sidebar-foreground">
             <Settings className="w-4 h-4" />
             {!sidebarCollapsed && <span>Settings</span>}
