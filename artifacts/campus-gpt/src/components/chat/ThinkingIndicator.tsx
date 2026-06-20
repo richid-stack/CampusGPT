@@ -1,29 +1,24 @@
-interface ThinkingIndicatorProps {
-  modelLabel?: string | null;
-}
-
-export function ThinkingIndicator({ modelLabel }: ThinkingIndicatorProps) {
-  const label = modelLabel ?? 'CampusGPT';
+export function ThinkingIndicator() {
   return (
-    <div className="flex items-start gap-3 py-4 px-2 md:px-4 animate-in">
-      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-indigo-500 shrink-0 mt-0.5 animate-pulse" />
-      <div className="flex flex-col gap-1.5">
-        <div className="text-xs font-medium text-text-tertiary">
-          {label} · Thinking
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {[0, 150, 300].map(delay => (
-              <span
-                key={delay}
-                className="w-2 h-2 bg-brand-400 rounded-full animate-bounce"
-                style={{ animationDelay: `${delay}ms`, animationDuration: '1s' }}
-              />
-            ))}
-          </div>
-          <span className="text-sm text-text-tertiary italic">Reading campus knowledge…</span>
-        </div>
+    <div className="flex items-center gap-3 py-4 px-2 md:px-4">
+      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-indigo-500 shrink-0" />
+      <div className="flex items-center gap-1.5 h-5">
+        {[0, 160, 320].map(delay => (
+          <span
+            key={delay}
+            className="w-2 h-2 rounded-full bg-text-tertiary"
+            style={{
+              animation: `thinkDot 1.4s ease-in-out ${delay}ms infinite`,
+            }}
+          />
+        ))}
       </div>
+      <style>{`
+        @keyframes thinkDot {
+          0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+          40%            { opacity: 1;    transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }

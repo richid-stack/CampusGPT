@@ -4,7 +4,6 @@ import { useAppStore } from '../store/appStore';
 
 export function useChat(threadId: number | null) {
   const [isThinking, setIsThinking] = useState(false);
-  const [currentToolChip, setCurrentToolChip] = useState<string | null>(null);
   const [streamedContent, setStreamedContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedModel, setStreamedModel] = useState<string | null>(null);
@@ -18,13 +17,9 @@ export function useChat(threadId: number | null) {
     if (!tid) return;
 
     setIsThinking(true);
-    setCurrentToolChip("🔎 Searching campus knowledge base…");
     setStreamedContent("");
     setStreamedModel(null);
     setStreamedModelLabel(null);
-
-    // Track when thinking started so we show it for at least 1.8s
-    const thinkingStart = Date.now();
 
     try {
       const ac = new AbortController();
@@ -39,16 +34,7 @@ export function useChat(threadId: number | null) {
 
       if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
 
-      setCurrentToolChip("🧠 Thinking with Qwen 3…");
-
-      // Ensure the thinking chip is visible for at least 1.8 seconds total
-      const elapsed = Date.now() - thinkingStart;
-      if (elapsed < 1800) {
-        await new Promise(r => setTimeout(r, 1800 - elapsed));
-      }
-
       setIsThinking(false);
-      setCurrentToolChip(null);
       setIsStreaming(true);
       setStreamingMessageId(tid);
 
@@ -75,22 +61,19 @@ export function useChat(threadId: number | null) {
               done?: boolean;
               model?: string;
               modelLabel?: string;
-              mode?: string;
               error?: string;
             };
 
             if (payload.error) {
-              setStreamedContent(prev => prev + "\n\n⚠️ Stream error. Please try again.");
+              setStreamedContent(prev => prev + "\n\n⚠️ Connection error. Please try again.");
               break;
             }
             if (payload.delta) setStreamedContent(prev => prev + payload.delta);
             if (payload.done) {
-              if (payload.model) setStreamedModel(payload.model);
+              if (payload.model)      setStreamedModel(payload.model);
               if (payload.modelLabel) setStreamedModelLabel(payload.modelLabel);
-              // Update chip label mid-stream with actual model used
-              if (payload.modelLabel) setCurrentToolChip(null);
             }
-          } catch { /* skip malformed */ }
+          } catch { /* skip malformed chunk */ }
         }
       }
     } catch (err: any) {
@@ -99,7 +82,6 @@ export function useChat(threadId: number | null) {
       }
     } finally {
       setIsThinking(false);
-      setCurrentToolChip(null);
       setIsStreaming(false);
       setStreamingMessageId(null);
       abortRef.current = null;
@@ -116,5 +98,11 @@ export function useChat(threadId: number | null) {
 
   useEffect(() => { return () => { abortRef.current?.abort(); }; }, []);
 
-  return { sendMessage, stopStreaming, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel, streamedModelLabel };
+  // currentToolChip kept as null — no chip text shown to users
+  return {
+    sendMessage, stopStreaming,
+    isThinking, currentToolChip: null,
+    isStreaming, streamedContent,
+    streamedModel, streamedModelLabel,
+  };
 }

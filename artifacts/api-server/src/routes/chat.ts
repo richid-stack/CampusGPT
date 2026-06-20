@@ -9,33 +9,72 @@ const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const MODELS = {
-  default: "qwen/qwen3-32b",          // Fast, natural, great for student Q&A
-  smart:   "meta-llama/llama-4-scout-17b-16e-instruct", // Deep reasoning for complex questions
-  fast:    "qwen/qwen3.6-27b",        // Slightly faster Qwen variant
+  default: "qwen/qwen3-32b",
+  smart:   "meta-llama/llama-4-scout-17b-16e-instruct",
+  fast:    "qwen/qwen3.6-27b",
 };
 
 const MODEL_LABELS: Record<string, string> = {
-  "qwen/qwen3-32b":                           "Qwen 3 · 32B",
-  "meta-llama/llama-4-scout-17b-16e-instruct":"Llama 4 Scout",
-  "qwen/qwen3.6-27b":                         "Qwen 3 · 27B",
+  "qwen/qwen3-32b":                            "Qwen 3 · 32B",
+  "meta-llama/llama-4-scout-17b-16e-instruct": "Llama 4 Scout",
+  "qwen/qwen3.6-27b":                          "Qwen 3 · 27B",
 };
 
 const SMART_KEYWORDS = [
   "explain why", "explain how", "compare", "analyze", "analyse",
-  "calculate", "difference between", "what are the differences",
-  "critically", "evaluate", "prove", "why is it", "what would happen",
-  "academic advice", "gpa", "cgpa", "thesis", "dissertation",
-  "research methodology", "literature review",
+  "calculate", "difference between", "critically", "evaluate",
+  "prove", "what would happen", "academic advice",
+  "gpa", "cgpa", "thesis", "dissertation", "research methodology",
 ];
 
 function selectModel(content: string, requestedMode?: string): keyof typeof MODELS {
   if (requestedMode === "smart") return "smart";
-  if (requestedMode === "fast")  return "fast";
-  if (requestedMode === "walk")  return "fast"; // walk-with-me uses fast model
-
+  if (requestedMode === "fast" || requestedMode === "walk") return "fast";
   const lower = content.toLowerCase();
   if (SMART_KEYWORDS.some(k => lower.includes(k)) || content.length > 250) return "smart";
   return "default";
+}
+
+/**
+ * Strip <think>…</think> blocks from Qwen 3's chain-of-thought output so they
+ * never reach the user. Operates on a rolling buffer so partial tags that span
+ * chunk boundaries are handled correctly.
+ */
+function makeThinkFilter() {
+  let buf = "";
+  let inThink = false;
+
+  return function filter(delta: string): string {
+    buf += delta;
+    let out = "";
+
+    while (true) {
+      if (!inThink) {
+        const start = buf.indexOf("<think>");
+        if (start === -1) {
+          // No opening tag — safe to emit everything except a trailing partial tag
+          const guard = Math.max(0, buf.length - 7);
+          out += buf.slice(0, guard);
+          buf = buf.slice(guard);
+          break;
+        }
+        out += buf.slice(0, start);
+        buf = buf.slice(start + 7);
+        inThink = true;
+      } else {
+        const end = buf.indexOf("</think>");
+        if (end === -1) {
+          // Still inside a think block — discard everything
+          buf = "";
+          break;
+        }
+        buf = buf.slice(end + 8);
+        inThink = false;
+      }
+    }
+
+    return out;
+  };
 }
 
 router.post("/threads/:threadId/chat", async (req, res) => {
@@ -46,35 +85,29 @@ router.post("/threads/:threadId/chat", async (req, res) => {
   if (!content?.trim()) { res.status(400).json({ error: "Missing content" }); return; }
 
   try {
-    // 1. Save user message
     await db.insert(messagesTable).values({ threadId, role: "user", content: content.trim() });
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
-    // 2. Load recent history
     const history = await db
       .select().from(messagesTable)
       .where(eq(messagesTable.threadId, threadId))
       .orderBy(asc(messagesTable.createdAt))
       .limit(20);
 
-    const recentHistory = history.slice(-8);
-
     const modelKey = selectModel(content.trim(), mode);
-    const modelId = MODELS[modelKey];
-
+    const modelId  = MODELS[modelKey];
     const systemPrompt = mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...recentHistory.map(m => ({
+      ...history.slice(-8).map(m => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
 
-    // 3. Stream SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -86,20 +119,23 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       messages,
       stream: true,
       max_tokens: 1024,
-      temperature: modelKey === "smart" ? 0.3 : 0.5,
+      temperature: modelKey === "smart" ? 0.4 : 0.55,
     });
 
+    const thinkFilter = makeThinkFilter();
     let fullContent = "";
 
     for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content ?? "";
-      if (delta) {
-        fullContent += delta;
-        res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+      const raw = chunk.choices[0]?.delta?.content ?? "";
+      if (!raw) continue;
+
+      const safe = thinkFilter(raw);
+      if (safe) {
+        fullContent += safe;
+        res.write(`data: ${JSON.stringify({ delta: safe })}\n\n`);
       }
     }
 
-    // 4. Save assistant message
     await db.insert(messagesTable).values({ threadId, role: "assistant", content: fullContent });
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
