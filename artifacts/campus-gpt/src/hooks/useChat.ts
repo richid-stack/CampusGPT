@@ -8,18 +8,23 @@ export function useChat(threadId: number | null) {
   const [streamedContent, setStreamedContent] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedModel, setStreamedModel] = useState<string | null>(null);
+  const [streamedModelLabel, setStreamedModelLabel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
   const { setStreamingMessageId } = useAppStore();
 
-  const sendMessage = useCallback(async (content: string, overrideThreadId?: number) => {
+  const sendMessage = useCallback(async (content: string, overrideThreadId?: number, mode?: string) => {
     const tid = overrideThreadId ?? threadId;
     if (!tid) return;
 
     setIsThinking(true);
-    setCurrentToolChip("🔎 Searching knowledge base...");
+    setCurrentToolChip("🔎 Searching campus knowledge base…");
     setStreamedContent("");
     setStreamedModel(null);
+    setStreamedModelLabel(null);
+
+    // Track when thinking started so we show it for at least 1.8s
+    const thinkingStart = Date.now();
 
     try {
       const ac = new AbortController();
@@ -28,17 +33,21 @@ export function useChat(threadId: number | null) {
       const res = await fetch(`/api/threads/${tid}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, mode }),
         signal: ac.signal,
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error(`Server error: ${res.status}`);
+      if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
+
+      setCurrentToolChip("🧠 Thinking with Qwen 3…");
+
+      // Ensure the thinking chip is visible for at least 1.8 seconds total
+      const elapsed = Date.now() - thinkingStart;
+      if (elapsed < 1800) {
+        await new Promise(r => setTimeout(r, 1800 - elapsed));
       }
 
       setIsThinking(false);
-      setCurrentToolChip("📝 Composing response...");
-      await new Promise(r => setTimeout(r, 300));
       setCurrentToolChip(null);
       setIsStreaming(true);
       setStreamingMessageId(tid);
@@ -65,6 +74,8 @@ export function useChat(threadId: number | null) {
               delta?: string;
               done?: boolean;
               model?: string;
+              modelLabel?: string;
+              mode?: string;
               error?: string;
             };
 
@@ -72,15 +83,14 @@ export function useChat(threadId: number | null) {
               setStreamedContent(prev => prev + "\n\n⚠️ Stream error. Please try again.");
               break;
             }
-            if (payload.delta) {
-              setStreamedContent(prev => prev + payload.delta);
+            if (payload.delta) setStreamedContent(prev => prev + payload.delta);
+            if (payload.done) {
+              if (payload.model) setStreamedModel(payload.model);
+              if (payload.modelLabel) setStreamedModelLabel(payload.modelLabel);
+              // Update chip label mid-stream with actual model used
+              if (payload.modelLabel) setCurrentToolChip(null);
             }
-            if (payload.done && payload.model) {
-              setStreamedModel(payload.model);
-            }
-          } catch {
-            // skip malformed line
-          }
+          } catch { /* skip malformed */ }
         }
       }
     } catch (err: any) {
@@ -96,20 +106,15 @@ export function useChat(threadId: number | null) {
 
       const finalTid = overrideThreadId ?? threadId;
       if (finalTid) {
-        queryClient.invalidateQueries({ queryKey: [`/api/threads/${finalTid}/messages`] });
-        queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
         queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0]).includes('messages') });
+        queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
       }
     }
   }, [threadId, setStreamingMessageId, queryClient]);
 
-  const stopStreaming = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
+  const stopStreaming = useCallback(() => { abortRef.current?.abort(); }, []);
 
-  useEffect(() => {
-    return () => { abortRef.current?.abort(); };
-  }, []);
+  useEffect(() => { return () => { abortRef.current?.abort(); }; }, []);
 
-  return { sendMessage, stopStreaming, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel };
+  return { sendMessage, stopStreaming, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel, streamedModelLabel };
 }

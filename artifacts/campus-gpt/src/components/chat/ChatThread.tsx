@@ -12,9 +12,13 @@ interface ChatThreadProps {
   isStreaming: boolean;
   streamedContent: string;
   streamedModel?: string | null;
+  streamedModelLabel?: string | null;
 }
 
-export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming, streamedContent, streamedModel }: ChatThreadProps) {
+export function ChatThread({
+  threadId, isThinking, currentToolChip, isStreaming,
+  streamedContent, streamedModel, streamedModelLabel,
+}: ChatThreadProps) {
   const { data: messages, isLoading } = useListMessages(threadId);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +31,7 @@ export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming,
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-text-tertiary text-sm">Loading messages...</div>
+        <div className="text-text-tertiary text-sm">Loading messages…</div>
       </div>
     );
   }
@@ -45,11 +49,11 @@ export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming,
           </div>
         )}
 
-        {savedMessages.map((msg) => (
+        {savedMessages.map(msg =>
           msg.role === 'user'
             ? <MessageBubble key={msg.id} message={msg} />
             : <AssistantMessage key={msg.id} message={msg} />
-        ))}
+        )}
 
         {isThinking && <ThinkingIndicator />}
         {currentToolChip && !isStreaming && <ToolChip text={currentToolChip} />}
@@ -59,6 +63,7 @@ export function ChatThread({ threadId, isThinking, currentToolChip, isStreaming,
             message={{ content: streamedContent, role: 'assistant' } as any}
             isStreaming={true}
             model={streamedModel}
+            modelLabel={streamedModelLabel}
           />
         )}
       </div>

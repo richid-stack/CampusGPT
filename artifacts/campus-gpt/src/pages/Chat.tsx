@@ -18,16 +18,13 @@ export default function Chat() {
   const queryClient = useQueryClient();
   const [voiceOpen, setVoiceOpen] = useState(false);
 
-  const { setRightPanelOpen, setRightPanelTab, setActiveThreadId } = useAppStore();
+  const { setRightPanelTab, setActiveThreadId } = useAppStore();
 
   const {
-    sendMessage,
-    stopStreaming,
-    isThinking,
-    currentToolChip,
-    isStreaming,
-    streamedContent,
-    streamedModel,
+    sendMessage, stopStreaming,
+    isThinking, currentToolChip,
+    isStreaming, streamedContent,
+    streamedModel, streamedModelLabel,
   } = useChat(id);
 
   useEffect(() => {
@@ -44,7 +41,6 @@ export default function Chat() {
 
   const handleSend = async (content: string) => {
     let activeId = id;
-
     if (!activeId) {
       try {
         activeId = await handleCreateThread(content);
@@ -55,7 +51,6 @@ export default function Chat() {
       }
       return;
     }
-
     await sendMessage(content);
     setRightPanelTab('sources');
   };
@@ -68,12 +63,10 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Thread header — hidden on mobile (AppShell header covers it) */}
       <div className="hidden md:flex h-14 border-b border-border items-center px-6 shrink-0 bg-background/80 backdrop-blur-sm z-10 sticky top-0">
         <h1 className="font-semibold text-text-primary truncate flex-1">{thread?.title || 'New Chat'}</h1>
       </div>
 
-      {/* Thread title on mobile */}
       {thread?.title && (
         <div className="flex md:hidden px-4 pt-3 pb-1">
           <span className="text-sm font-medium text-text-secondary truncate">{thread.title}</span>
@@ -88,6 +81,7 @@ export default function Chat() {
           isStreaming={isStreaming}
           streamedContent={streamedContent}
           streamedModel={streamedModel}
+          streamedModelLabel={streamedModelLabel}
         />
       </div>
 

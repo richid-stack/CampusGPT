@@ -3,53 +3,78 @@ import Groq from "groq-sdk";
 import { db } from "@workspace/db";
 import { messagesTable, threadsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
-import { SYSTEM_PROMPT } from "../lib/knowledgeBase.js";
+import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 
 const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODELS = {
+  default: "qwen/qwen3-32b",          // Fast, natural, great for student Q&A
+  smart:   "meta-llama/llama-4-scout-17b-16e-instruct", // Deep reasoning for complex questions
+  fast:    "qwen/qwen3.6-27b",        // Slightly faster Qwen variant
+};
+
+const MODEL_LABELS: Record<string, string> = {
+  "qwen/qwen3-32b":                           "Qwen 3 · 32B",
+  "meta-llama/llama-4-scout-17b-16e-instruct":"Llama 4 Scout",
+  "qwen/qwen3.6-27b":                         "Qwen 3 · 27B",
+};
+
+const SMART_KEYWORDS = [
+  "explain why", "explain how", "compare", "analyze", "analyse",
+  "calculate", "difference between", "what are the differences",
+  "critically", "evaluate", "prove", "why is it", "what would happen",
+  "academic advice", "gpa", "cgpa", "thesis", "dissertation",
+  "research methodology", "literature review",
+];
+
+function selectModel(content: string, requestedMode?: string): keyof typeof MODELS {
+  if (requestedMode === "smart") return "smart";
+  if (requestedMode === "fast")  return "fast";
+  if (requestedMode === "walk")  return "fast"; // walk-with-me uses fast model
+
+  const lower = content.toLowerCase();
+  if (SMART_KEYWORDS.some(k => lower.includes(k)) || content.length > 250) return "smart";
+  return "default";
+}
 
 router.post("/threads/:threadId/chat", async (req, res) => {
   const threadId = parseInt(req.params.threadId);
   if (isNaN(threadId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { content } = req.body as { content?: string };
+  const { content, mode } = req.body as { content?: string; mode?: string };
   if (!content?.trim()) { res.status(400).json({ error: "Missing content" }); return; }
 
   try {
-    // 1. Save user message to DB
-    await db.insert(messagesTable).values({
-      threadId,
-      role: "user",
-      content: content.trim(),
-    });
-
-    await db
-      .update(threadsTable)
+    // 1. Save user message
+    await db.insert(messagesTable).values({ threadId, role: "user", content: content.trim() });
+    await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
-    // 2. Load conversation history (last 20 messages)
+    // 2. Load recent history
     const history = await db
-      .select()
-      .from(messagesTable)
+      .select().from(messagesTable)
       .where(eq(messagesTable.threadId, threadId))
       .orderBy(asc(messagesTable.createdAt))
       .limit(20);
 
-    // Keep only last 6 messages (3 turns) to stay within token budget
-    const recentHistory = history.slice(-6);
+    const recentHistory = history.slice(-8);
+
+    const modelKey = selectModel(content.trim(), mode);
+    const modelId = MODELS[modelKey];
+
+    const systemPrompt = mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...recentHistory.map((m) => ({
+      { role: "system", content: systemPrompt },
+      ...recentHistory.map(m => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
 
-    // 3. Stream SSE response
+    // 3. Stream SSE
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -57,11 +82,11 @@ router.post("/threads/:threadId/chat", async (req, res) => {
     res.flushHeaders();
 
     const stream = await groq.chat.completions.create({
-      model: MODEL,
+      model: modelId,
       messages,
       stream: true,
       max_tokens: 1024,
-      temperature: 0.4,
+      temperature: modelKey === "smart" ? 0.3 : 0.5,
     });
 
     let fullContent = "";
@@ -74,19 +99,14 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       }
     }
 
-    // 4. Save assistant message to DB
-    await db.insert(messagesTable).values({
-      threadId,
-      role: "assistant",
-      content: fullContent,
-    });
-
-    await db
-      .update(threadsTable)
+    // 4. Save assistant message
+    await db.insert(messagesTable).values({ threadId, role: "assistant", content: fullContent });
+    await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
-    res.write(`data: ${JSON.stringify({ done: true, model: MODEL })}\n\n`);
+    const label = MODEL_LABELS[modelId] ?? modelId;
+    res.write(`data: ${JSON.stringify({ done: true, model: modelId, modelLabel: label, mode: modelKey })}\n\n`);
     res.end();
   } catch (err: any) {
     req.log?.error({ err }, "Chat error");

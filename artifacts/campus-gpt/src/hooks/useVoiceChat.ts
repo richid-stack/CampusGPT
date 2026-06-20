@@ -5,12 +5,13 @@ export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'err
 interface UseVoiceChatOptions {
   threadId: number | null;
   onCreateThread?: () => Promise<number>;
+  walkMode?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecognition = any;
 
-export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) {
+export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: UseVoiceChatOptions) {
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [transcript, setTranscript] = useState('');
   const [aiResponse, setAiResponse] = useState('');
@@ -21,9 +22,7 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
   const abortRef = useRef<AbortController | null>(null);
   const activeThreadIdRef = useRef<number | null>(threadId);
 
-  useEffect(() => {
-    activeThreadIdRef.current = threadId;
-  }, [threadId]);
+  useEffect(() => { activeThreadIdRef.current = threadId; }, [threadId]);
 
   const supported = typeof window !== 'undefined' &&
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,11 +42,9 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
       utter.rate = 1.05;
       utter.pitch = 1;
       utter.lang = 'en-GH';
-
       const voices = window.speechSynthesis.getVoices();
       const preferred = voices.find(v => v.lang.startsWith('en')) ?? voices[0];
       if (preferred) utter.voice = preferred;
-
       utter.onend = () => resolve();
       utter.onerror = () => resolve();
       synthRef.current = utter;
@@ -70,9 +67,8 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
         return;
       }
     }
-
     if (!tid) {
-      setError('No active chat thread. Please open a chat first.');
+      setError('No active chat thread. Open a chat first.');
       setVoiceState('error');
       return;
     }
@@ -81,10 +77,12 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
       const ac = new AbortController();
       abortRef.current = ac;
 
+      const mode = walkMode ? 'walk' : 'fast';
+
       const res = await fetch(`/api/threads/${tid}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, mode }),
         signal: ac.signal,
       });
 
@@ -101,15 +99,11 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
         buffer = lines.pop() ?? '';
-
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
             const payload = JSON.parse(line.slice(6).trim());
-            if (payload.delta) {
-              fullResponse += payload.delta;
-              setAiResponse(fullResponse);
-            }
+            if (payload.delta) { fullResponse += payload.delta; setAiResponse(fullResponse); }
           } catch { /* skip */ }
         }
       }
@@ -122,11 +116,11 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
           .replace(/#+\s/g, '')
           .replace(/🔴.*?$/gm, '')
           .replace(/⚠️.*?$/gm, '')
+          .replace(/📍\s*/g, '')
           .replace(/\n{3,}/g, '\n\n')
           .trim();
         await speak(clean);
       }
-
       setVoiceState('idle');
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
@@ -134,7 +128,7 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
         setVoiceState('error');
       }
     }
-  }, [onCreateThread, speak]);
+  }, [onCreateThread, speak, walkMode]);
 
   const startListening = useCallback(() => {
     if (!supported) {
@@ -142,7 +136,6 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
       setVoiceState('error');
       return;
     }
-
     window.speechSynthesis?.cancel();
     setError(null);
     setTranscript('');
@@ -157,60 +150,38 @@ export function useVoiceChat({ threadId, onCreateThread }: UseVoiceChatOptions) 
     recognition.lang = 'en-GH';
 
     recognition.onstart = () => setVoiceState('listening');
-
     recognition.onresult = (event: any) => {
-      let interim = '';
-      let final = '';
+      let interim = ''; let final = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
-        if (event.results[i].isFinal) final += t;
-        else interim += t;
+        if (event.results[i].isFinal) final += t; else interim += t;
       }
       setTranscript(final || interim);
     };
-
     recognition.onend = () => {
       setTranscript(prev => {
-        if (prev.trim()) {
-          sendToAI(prev.trim());
-        } else {
-          setVoiceState('idle');
-        }
+        if (prev.trim()) sendToAI(prev.trim());
+        else setVoiceState('idle');
         return prev;
       });
     };
-
     recognition.onerror = (event: any) => {
       if (event.error !== 'aborted') {
         setError(`Microphone error: ${event.error}`);
         setVoiceState('error');
       }
     };
-
     recognitionRef.current = recognition;
     recognition.start();
   }, [supported, sendToAI]);
 
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback(() => recognitionRef.current?.stop(), []);
+
+  useEffect(() => () => {
     recognitionRef.current?.stop();
+    window.speechSynthesis?.cancel();
+    abortRef.current?.abort();
   }, []);
 
-  useEffect(() => {
-    return () => {
-      recognitionRef.current?.stop();
-      window.speechSynthesis?.cancel();
-      abortRef.current?.abort();
-    };
-  }, []);
-
-  return {
-    voiceState,
-    transcript,
-    aiResponse,
-    error,
-    supported,
-    startListening,
-    stopListening,
-    stopEverything,
-  };
+  return { voiceState, transcript, aiResponse, error, supported, startListening, stopListening, stopEverything };
 }

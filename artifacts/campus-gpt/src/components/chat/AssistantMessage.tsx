@@ -1,7 +1,7 @@
 import { Message } from '@workspace/api-client-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, ThumbsUp, ThumbsDown, Copy, RotateCw, Share } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Copy, RotateCw } from 'lucide-react';
 import { SourceCard } from './SourceCard';
 import { FollowUpChips } from './FollowUpChips';
 
@@ -10,32 +10,42 @@ interface AssistantMessageProps {
     content: string;
     citations?: any[];
     followUps?: string[];
-    thinkingSeconds?: number | null;
   };
   isStreaming?: boolean;
   model?: string | null;
+  modelLabel?: string | null;
 }
 
-function modelLabel(model: string | null | undefined): string {
-  if (!model) return 'CampusGPT';
-  if (model.includes('llama-3.3')) return 'Llama 3.3 70B';
-  if (model.includes('llama-3.1')) return 'Llama 3.1 70B';
-  if (model.includes('llama')) return 'Llama';
-  return model;
+function getModelBadge(model: string | null | undefined, label: string | null | undefined): { text: string; color: string } {
+  const m = model ?? '';
+  const display = label || (
+    m.includes('qwen3-32b') ? 'Qwen 3 · 32B' :
+    m.includes('qwen3.6')   ? 'Qwen 3 · 27B' :
+    m.includes('llama-4-scout') ? 'Llama 4 Scout' :
+    m.includes('llama-3.3') ? 'Llama 3.3 · 70B' :
+    m ? m.split('/').pop() ?? 'CampusGPT' : 'CampusGPT'
+  );
+  const color =
+    m.includes('qwen')        ? 'text-violet-500' :
+    m.includes('llama-4')     ? 'text-blue-500'   :
+    m.includes('deepseek')    ? 'text-emerald-500': 'text-text-tertiary';
+  return { text: display, color };
 }
 
-export function AssistantMessage({ message, isStreaming, model }: AssistantMessageProps) {
+export function AssistantMessage({ message, isStreaming, model, modelLabel }: AssistantMessageProps) {
   const content = isStreaming ? `${message.content}▍` : message.content;
-  const label = modelLabel(model);
+  const badge = getModelBadge(model, modelLabel);
 
   return (
     <div className="flex flex-col w-full py-4 md:py-6 px-2 md:px-4 animate-in">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-brand-500 to-indigo-500 shrink-0" />
-        <div className="text-xs font-medium text-text-tertiary flex items-center gap-1">
+        <div className="text-xs font-medium text-text-tertiary flex items-center gap-1.5">
           CampusGPT
-          {!isStreaming && (
-            <span className="text-text-tertiary/60">· {label}</span>
+          {!isStreaming && model && (
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-card border border-border ${badge.color}`}>
+              {badge.text}
+            </span>
           )}
           {isStreaming && (
             <span className="flex gap-0.5 ml-1">
@@ -62,20 +72,20 @@ export function AssistantMessage({ message, isStreaming, model }: AssistantMessa
           </ReactMarkdown>
         </div>
 
-        {message.citations && message.citations.length > 0 && !isStreaming && (
+        {(message as any).citations?.length > 0 && !isStreaming && (
           <div className="mt-6">
             <h4 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">Sources</h4>
             <div className="flex flex-wrap gap-2">
-              {message.citations.map((c, i) => (
+              {(message as any).citations.map((c: any, i: number) => (
                 <SourceCard key={i} citation={c} />
               ))}
             </div>
           </div>
         )}
 
-        {!isStreaming && message.followUps && message.followUps.length > 0 && (
+        {!isStreaming && (message as any).followUps?.length > 0 && (
           <div className="mt-6">
-            <FollowUpChips chips={message.followUps} />
+            <FollowUpChips chips={(message as any).followUps} />
           </div>
         )}
 
@@ -83,9 +93,13 @@ export function AssistantMessage({ message, isStreaming, model }: AssistantMessa
           <div className="flex items-center gap-1 mt-4 opacity-0 hover:opacity-100 transition-opacity duration-200 -ml-2">
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><ThumbsUp className="w-4 h-4" /></button>
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><ThumbsDown className="w-4 h-4" /></button>
-            <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><Copy className="w-4 h-4" /></button>
+            <button
+              className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"
+              onClick={() => navigator.clipboard?.writeText(message.content)}
+            >
+              <Copy className="w-4 h-4" />
+            </button>
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><RotateCw className="w-4 h-4" /></button>
-            <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><Share className="w-4 h-4" /></button>
           </div>
         )}
       </div>
