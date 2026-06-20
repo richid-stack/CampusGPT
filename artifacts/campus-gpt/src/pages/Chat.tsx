@@ -17,6 +17,7 @@ export default function Chat() {
   const createThread = useCreateThread();
   const queryClient = useQueryClient();
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<'chat' | 'walk'>('chat');
 
   const { setRightPanelTab, setActiveThreadId } = useAppStore();
 
@@ -27,9 +28,7 @@ export default function Chat() {
     streamedModel, streamedModelLabel,
   } = useChat(id);
 
-  useEffect(() => {
-    if (id) setActiveThreadId(id);
-  }, [id, setActiveThreadId]);
+  useEffect(() => { if (id) setActiveThreadId(id); }, [id, setActiveThreadId]);
 
   const handleCreateThread = async (title: string) => {
     const newThread = await createThread.mutateAsync({
@@ -46,9 +45,7 @@ export default function Chat() {
         activeId = await handleCreateThread(content);
         setLocation(`/chat/${activeId}`);
         await sendMessage(content, activeId);
-      } catch {
-        console.error('Failed to create thread');
-      }
+      } catch { /* ignore */ }
       return;
     }
     await sendMessage(content);
@@ -59,6 +56,11 @@ export default function Chat() {
     const newId = await handleCreateThread('Voice chat');
     setLocation(`/chat/${newId}`);
     return newId;
+  };
+
+  const openVoice = (mode: 'chat' | 'walk' = 'chat') => {
+    setVoiceMode(mode);
+    setVoiceOpen(true);
   };
 
   return (
@@ -90,7 +92,7 @@ export default function Chat() {
           onSend={handleSend}
           isStreaming={isStreaming}
           onStop={stopStreaming}
-          onOpenVoiceCall={() => setVoiceOpen(true)}
+          onOpenVoiceCall={openVoice}
         />
       </div>
 
@@ -99,6 +101,7 @@ export default function Chat() {
           threadId={id}
           onClose={() => setVoiceOpen(false)}
           onCreateThread={!id ? handleVoiceCreateThread : undefined}
+          initialMode={voiceMode}
         />
       )}
     </div>

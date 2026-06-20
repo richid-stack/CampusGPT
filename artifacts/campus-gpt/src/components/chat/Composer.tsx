@@ -1,60 +1,77 @@
-import { ArrowUp, Mic, MicOff, Plus, Square, Loader2 } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, Square } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useCreateDocument } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { ActionSheet } from './ActionSheet';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRecognition = any;
+type AnyRecognition = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 interface ComposerProps {
   onSend: (content: string) => void;
   isStreaming?: boolean;
   onStop?: () => void;
   placeholder?: string;
-  onOpenVoiceCall?: () => void;
+  onOpenVoiceCall?: (mode?: 'chat' | 'walk') => void;
 }
 
-function VoiceOrb({ active, onClick }: { active: boolean; onClick: () => void }) {
+/* ── Mic button for voice call (always visible when input empty) ────────── */
+function VoiceOrb({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      title="Voice call with CampusGPT"
-      className={`relative w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-95 shadow-sm ${
-        active ? 'scale-110' : 'hover:scale-105'
-      }`}
+      title="Voice chat"
+      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-transform active:scale-90 hover:scale-105"
       style={{
-        background: active
-          ? 'linear-gradient(135deg, #ef4444, #ec4899)'
-          : 'linear-gradient(135deg, #6366f1, #3b82f6)',
-        boxShadow: active
-          ? '0 0 0 4px rgba(239,68,68,0.25), 0 2px 8px rgba(239,68,68,0.4)'
-          : '0 0 0 0px transparent, 0 2px 8px rgba(99,102,241,0.35)',
+        background: 'linear-gradient(135deg, #6366f1 0%, #2E6BFF 100%)',
+        boxShadow: '0 2px 10px rgba(99,102,241,0.35)',
       }}
     >
-      {/* Waveform bars */}
       <div className="flex items-center gap-[2px]">
-        {[1, 1.6, 1, 0.7, 1.3].map((h, i) => (
-          <span
-            key={i}
-            className="w-[2.5px] rounded-full bg-white"
-            style={{
-              height: `${h * (active ? 14 : 10)}px`,
-              animation: active ? `waveBar 0.8s ease-in-out ${i * 0.12}s infinite alternate` : 'none',
-              opacity: active ? 1 : 0.85,
-            }}
-          />
+        {[8, 13, 10, 6, 10].map((h, i) => (
+          <span key={i} className="rounded-full bg-white" style={{ width: 2.5, height: h, opacity: 0.9 }} />
         ))}
       </div>
-      {active && (
-        <span className="absolute inset-0 rounded-full animate-ping opacity-30"
-          style={{ background: 'linear-gradient(135deg, #ef4444, #ec4899)' }} />
-      )}
-      <style>{`
-        @keyframes waveBar {
-          from { transform: scaleY(0.5); }
-          to   { transform: scaleY(1.4); }
-        }
-      `}</style>
+    </button>
+  );
+}
+
+/* ── Send button (appears when input has text) ──────────────────────────── */
+function SendButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white
+        active:scale-90 transition-transform"
+      style={{ background: '#2E6BFF', boxShadow: '0 2px 8px rgba(46,107,255,0.4)' }}
+    >
+      <ArrowUp strokeWidth={2.5} className="w-[18px] h-[18px]" />
+    </button>
+  );
+}
+
+/* ── Stop button (appears while streaming) ──────────────────────────────── */
+function StopButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-9 h-9 rounded-full bg-text-primary flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
+    >
+      <Square className="w-3.5 h-3.5 fill-white text-white" />
+    </button>
+  );
+}
+
+/* ── Plus button ────────────────────────────────────────────────────────── */
+function PlusButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-text-secondary
+        border border-border hover:border-brand-500/40 hover:text-brand-500 transition-colors active:scale-95 bg-card"
+      title="Add content"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
     </button>
   );
 }
@@ -62,207 +79,145 @@ function VoiceOrb({ active, onClick }: { active: boolean; onClick: () => void })
 export function Composer({ onSend, isStreaming, onStop, placeholder, onOpenVoiceCall }: ComposerProps) {
   const [content, setContent] = useState('');
   const [isRecording, setIsRecording] = useState(false);
-  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const createDocument = useCreateDocument();
-  const queryClient = useQueryClient();
+  const recognitionRef = useRef<AnyRecognition>(null);
 
   const hasSpeechSupport = typeof window !== 'undefined' &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ('SpeechRecognition' in (window as any) || 'webkitSpeechRecognition' in (window as any));
+    ('SpeechRecognition' in (window as AnyRecognition) || 'webkitSpeechRecognition' in (window as AnyRecognition));
+
+  const resizeTextarea = () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
-    }
+    resizeTextarea();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       if (content.trim() && !isStreaming) submit();
     }
   };
 
   const submit = () => {
-    if (!content.trim() || isStreaming) return;
-    onSend(content.trim());
+    const trimmed = content.trim();
+    if (!trimmed || isStreaming) return;
+    onSend(trimmed);
     setContent('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
-  /* ---------- file upload via + button ---------- */
-  const handlePlusClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    setUploadState('uploading');
-    try {
-      for (const file of files) {
-        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-        const typeMap: Record<string, string> = { pdf: 'PDF', doc: 'Word', docx: 'Word', ppt: 'PowerPoint', pptx: 'PowerPoint', txt: 'Text', md: 'Markdown' };
-        const type = typeMap[ext] || ext.toUpperCase() || 'File';
-        const mb = file.size / (1024 * 1024);
-        const pageCount = Math.max(1, Math.round(mb * (ext === 'pdf' ? 10 : 15)));
-        await createDocument.mutateAsync({ data: { name: file.name, type, pageCount } });
-      }
-      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
-      setUploadState('done');
-      setTimeout(() => setUploadState('idle'), 2500);
-    } catch {
-      setUploadState('error');
-      setTimeout(() => setUploadState('idle'), 2500);
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  /* ---------- speech-to-text mic ---------- */
+  /* STT ─────────────────────────────────────────────────────────────────── */
   const startRecording = useCallback(() => {
     if (!hasSpeechSupport) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any;
-    const SR: AnyRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
-    const recognition: AnyRecognition = new SR();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-GH';
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onresult = (event: any) => {
-      let interim = ''; let final = '';
+    const w = window as AnyRecognition;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    const rec: AnyRecognition = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = 'en-GH';
+    rec.onstart = () => setIsRecording(true);
+    rec.onresult = (event: AnyRecognition) => {
+      let final = ''; let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const t = event.results[i][0].transcript;
         if (event.results[i].isFinal) final += t; else interim += t;
       }
       const heard = final || interim;
       setContent(heard);
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
-        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
-      }
+      setTimeout(resizeTextarea, 0);
     };
-    recognition.onend = () => {
+    rec.onend = () => {
       setIsRecording(false);
       setContent(prev => {
         if (prev.trim() && !isStreaming) {
-          setTimeout(() => { onSend(prev.trim()); setContent(''); if (textareaRef.current) textareaRef.current.style.height = 'auto'; }, 200);
+          setTimeout(() => { onSend(prev.trim()); setContent(''); if (textareaRef.current) textareaRef.current.style.height = 'auto'; }, 150);
         }
         return prev;
       });
     };
-    recognition.onerror = (event: any) => { if (event.error !== 'aborted') setIsRecording(false); setIsRecording(false); };
-    recognitionRef.current = recognition;
-    recognition.start();
+    rec.onerror = () => setIsRecording(false);
+    recognitionRef.current = rec;
+    rec.start();
   }, [hasSpeechSupport, isStreaming, onSend]);
 
   const stopRecording = useCallback(() => recognitionRef.current?.stop(), []);
   useEffect(() => () => recognitionRef.current?.stop(), []);
 
-  const uploadMsg = uploadState === 'uploading' ? 'Uploading…' : uploadState === 'done' ? '✓ Added to Documents' : uploadState === 'error' ? '✗ Upload failed' : null;
+  const hasText = content.trim().length > 0;
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-3 md:px-4 pb-3 md:pb-5 pt-2">
-      {/* Upload status toast */}
-      {uploadMsg && (
-        <div className={`mb-2 text-center text-xs px-3 py-1 rounded-full mx-auto w-fit font-medium transition-all ${
-          uploadState === 'done' ? 'bg-success/10 text-success' :
-          uploadState === 'error' ? 'bg-red-50 text-red-500' :
-          'bg-brand-50 text-brand-600'
-        }`}>
-          {uploadState === 'uploading' && <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />}
-          {uploadMsg}
-        </div>
-      )}
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        multiple
-        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg"
-        onChange={handleFileChange}
+    <>
+      <ActionSheet
+        open={actionSheetOpen}
+        onClose={() => setActionSheetOpen(false)}
+        onWalkWithMe={() => onOpenVoiceCall?.('walk')}
       />
 
-      {/* Composer bar */}
-      <div className={`relative flex items-end gap-1 bg-background border rounded-2xl shadow-sm transition-all ${
-        isRecording ? 'border-brand-500 ring-2 ring-brand-500/30' : 'border-border focus-within:ring-1 focus-within:ring-brand-500/40'
-      }`}>
-
-        {/* + attachment */}
-        <button
-          onClick={handlePlusClick}
-          disabled={uploadState === 'uploading'}
-          className="p-2.5 md:p-3 text-text-tertiary hover:text-text-primary transition-colors shrink-0"
-          title="Attach file to Documents"
+      <div className="w-full max-w-3xl mx-auto px-3 md:px-4 pb-3 md:pb-5 pt-1">
+        <div className={`flex items-end gap-2 bg-background border rounded-[20px] px-3 py-2 transition-all ${
+          isRecording
+            ? 'border-brand-500 ring-2 ring-brand-500/20'
+            : 'border-border focus-within:ring-1 focus-within:ring-brand-500/30 focus-within:border-brand-500/50'
+        }`}
+          style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
         >
-          {uploadState === 'uploading'
-            ? <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-            : <Plus className="w-4 h-4 md:w-5 md:h-5" />
-          }
-        </button>
+          {/* + button */}
+          <div className="mb-1">
+            <PlusButton onClick={() => setActionSheetOpen(true)} />
+          </div>
 
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder={isRecording ? 'Listening…' : placeholder ?? 'Ask CampusGPT…'}
-          rows={1}
-          className="flex-1 max-h-[160px] min-h-[42px] md:min-h-[44px] py-2.5 md:py-3 bg-transparent border-none outline-none resize-none text-text-primary placeholder:text-text-tertiary leading-relaxed text-[15px]"
-        />
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={isRecording ? 'Listening…' : placeholder ?? 'Ask CampusGPT…'}
+            rows={1}
+            className="flex-1 bg-transparent border-none outline-none resize-none py-1.5
+              text-text-primary placeholder:text-text-tertiary leading-relaxed text-[15px]
+              max-h-[160px] min-h-[36px] self-center"
+          />
 
-        <div className="flex items-center gap-1.5 p-1.5 md:p-2 shrink-0">
-          {/* Mic (STT) */}
-          {hasSpeechSupport && !isStreaming && (
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isRecording
-                  ? 'text-brand-500 bg-brand-50 animate-pulse'
-                  : 'text-text-tertiary hover:text-brand-500'
-              }`}
-              title={isRecording ? 'Stop listening' : 'Speak your message'}
-            >
-              {isRecording
-                ? <MicOff className="w-4 h-4 md:w-5 md:h-5" />
-                : <Mic className="w-4 h-4 md:w-5 md:h-5" />
-              }
-            </button>
-          )}
+          {/* Right-side buttons */}
+          <div className="flex items-center gap-2 mb-1">
+            {/* STT mic (only when not streaming and speech supported) */}
+            {hasSpeechSupport && !isStreaming && !hasText && (
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isRecording
+                    ? 'text-brand-500 animate-pulse'
+                    : 'text-text-tertiary hover:text-brand-500'
+                }`}
+                title={isRecording ? 'Stop' : 'Speak'}
+              >
+                {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+            )}
 
-          {/* Voice orb OR send/stop button */}
-          {!content.trim() && !isStreaming ? (
-            /* Empty — show animated voice orb */
-            <VoiceOrb active={false} onClick={() => onOpenVoiceCall?.()} />
-          ) : isStreaming ? (
-            /* Streaming — show stop button */
-            <button
-              onClick={onStop}
-              className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors active:scale-95"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" />
-            </button>
-          ) : (
-            /* Has content — show send button */
-            <button
-              onClick={submit}
-              className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-brand-500 hover:bg-brand-600 text-white flex items-center justify-center transition-colors active:scale-95 shadow-sm"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </button>
-          )}
+            {/* Primary action button — changes based on state */}
+            {isStreaming ? (
+              <StopButton onClick={() => onStop?.()} />
+            ) : hasText ? (
+              <SendButton onClick={submit} />
+            ) : (
+              <VoiceOrb onClick={() => onOpenVoiceCall?.('chat')} />
+            )}
+          </div>
         </div>
-      </div>
 
-      <p className="text-center mt-2 text-[10px] md:text-[11px] text-text-tertiary">
-        CampusGPT can make mistakes. Always verify with official UG sources.
-      </p>
-    </div>
+        <p className="text-center mt-2 text-[11px] text-text-tertiary/70">
+          CampusGPT may make mistakes — verify with official UG sources.
+        </p>
+      </div>
+    </>
   );
 }
