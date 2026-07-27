@@ -9,57 +9,56 @@ export interface SimulatedResponse {
 
 const responses: SimulatedResponse[] = [
   {
-    content: "Based on your degree requirements, you should take **CS3230** (Design and Analysis of Algorithms) and **CS2105** (Introduction to Software Engineering) next semester [1]. \n\nSince you are also interested in AI, **CS3243** (Introduction to Artificial Intelligence) would be a great fit [2]. Let me know if you want me to add these to your academic planner.",
+    content: "To register your courses on **MIS Web**, go to [mis.ug.edu.gh](https://mis.ug.edu.gh) and log in with your student ID and PIN. Navigate to **Course Registration** under the Academic menu. Select your semester, choose your courses, and click **Submit Registration** before the deadline [1].\n\nFor HERC/UGRC courses, registration is done separately at [sts.ug.edu.gh](https://sts.ug.edu.gh) using your index number and the PIN from your confidential PDF [2].",
     citations: [
-      { index: 1, title: "CS Degree Requirements 2023/24", url: "https://nus.edu.sg", domain: "nus.edu.sg", excerpt: "Students must complete CS3230 and CS2105 before proceeding to level 4000 modules." },
-      { index: 2, title: "AI Focus Area Guidelines", url: "https://nus.edu.sg", domain: "nus.edu.sg", excerpt: "CS3243 is the foundational module for the AI focus area." }
+      { index: 1, title: "MIS Web Student Portal Guide", url: "https://ug.edu.gh", domain: "ug.edu.gh", excerpt: "Course registration is available on MIS Web during the registration window each semester." },
+      { index: 2, title: "HERC/UGRC Registration – STS Portal", url: "https://sts.ug.edu.gh", domain: "sts.ug.edu.gh", excerpt: "Use your index number and PIN from the confidential PDF to register HERC and UGRC courses." }
     ],
-    followUps: ["Add to my planner", "What are the prerequisites for CS3243?", "Show timetable options"],
-    toolChips: ["🔎 Searching course catalog...", "📊 Analyzing degree progress..."]
+    followUps: ["When does registration close?", "What is the Add/Drop period?", "How do I get my PIN?"],
+    toolChips: ["🔎 Searching campus database...", "📋 Checking registration deadlines..."]
   },
   {
-    content: "You have an urgent deadline coming up: **CS3243 Midterm** is tomorrow at 2:00 PM [1]. \n\nYou also have a lab report for **CS2105** due on Friday [2]. Would you like me to schedule study blocks for these?",
+    content: "UG semester fees can be paid through the **GCB bank payment system** or via the **UG Student Payment Portal** at [fees.ug.edu.gh](https://fees.ug.edu.gh). You will need your index number to generate a payment slip [1].\n\nFor fee breakdown and scholarship deductions, check **MIS Web → Student Finance**. If you receive SLTF support, the disbursement is reflected there automatically [2].",
     citations: [
-      { index: 1, title: "CS3243 Midterm Announcement", url: "https://canvas.nus.edu.sg", domain: "canvas.nus.edu.sg", excerpt: "The midterm will be held on Thursday at 2:00 PM in MPSH1." },
-      { index: 2, title: "CS2105 Lab 3 Submission", url: "https://canvas.nus.edu.sg", domain: "canvas.nus.edu.sg", excerpt: "Lab 3 report is due this Friday by 23:59." }
+      { index: 1, title: "UG Fees Payment Guide", url: "https://ug.edu.gh", domain: "ug.edu.gh", excerpt: "Students must pay fees at designated GCB branches or through the online portal before the deadline." },
+      { index: 2, title: "SLTF Loan Disbursement Info", url: "https://sltf.gov.gh", domain: "sltf.gov.gh", excerpt: "SLTF loans are disbursed directly to UG and reflected on the student finance dashboard." }
     ],
-    followUps: ["Schedule study blocks", "What's covered in the midterm?", "Show my timetable"],
-    toolChips: ["📅 Checking planner...", "📥 Fetching latest announcements..."]
+    followUps: ["How do I apply for SLTF?", "What happens if I miss the fee deadline?", "Where is the GCB bank on campus?"],
+    toolChips: ["💳 Checking fees portal...", "📊 Loading finance information..."]
   },
   {
-    content: "The hall reapplication exercise for next academic year opens on **March 15th** and closes on **March 30th** [1]. \n\nSince you are currently in King Edward VII Hall, you can apply under the senior retention scheme [2]. Make sure your CCA points are updated before the portal opens.",
+    content: "The **Add/Drop period** usually runs for the first two weeks of each semester. You can add or drop courses on **MIS Web** during this window without academic penalty [1].\n\nAfter the Add/Drop window closes, you can apply for a **Late Withdrawal** through your department — this incurs a 'W' on your transcript but not a failing grade. Your Departmental Exams Officer handles all exceptions [2].",
     citations: [
-      { index: 1, title: "Hostel Admission Exercise Dates", url: "https://nus.edu.sg", domain: "nus.edu.sg", excerpt: "Applications for senior retention open on March 15 and close on March 30." },
-      { index: 2, title: "KEVII Hall Retention Criteria", url: "https://kevii.nus.edu.sg", domain: "kevii.nus.edu.sg", excerpt: "Residents applying for retention must have a minimum of 30 CCA points." }
+      { index: 1, title: "UG Academic Calendar – Add/Drop Rules", url: "https://ug.edu.gh", domain: "ug.edu.gh", excerpt: "The Add/Drop window opens on the first day of lectures and closes at the end of week two." },
+      { index: 2, title: "Late Withdrawal Policy", url: "https://ug.edu.gh", domain: "ug.edu.gh", excerpt: "Students wishing to withdraw after the Add/Drop period must apply via the Departmental Exams Officer." }
     ],
-    followUps: ["How to check CCA points?", "Draft my portfolio", "Set a reminder"],
-    toolChips: ["🏛 Fetching hall policies...", "⏰ Checking academic calendar..."]
+    followUps: ["When does the semester start?", "Who is my Departmental Exams Officer?", "What is a 'W' grade?"],
+    toolChips: ["📅 Checking academic calendar...", "📥 Fetching registration rules..."]
   },
   {
-    content: "For your CS2030 project, I recommend looking into **Java Streams** and **Optional** [1]. These will help you handle the asynchronous data processing required for the task. \n\nI found a relevant slide from Lecture 7 that explains how to chain stream operations effectively [2].",
+    content: "**SLTF (Student Loan Trust Fund)** loans cover tuition and living expenses for eligible Ghanaian students. To apply, visit [sltf.gov.gh](https://sltf.gov.gh) and create an account with your Ghana Card details [1].\n\nRequired documents: admission letter, Ghana Card, guarantor details, and proof of enrollment from the UG Registrar. Disbursements are made directly to UG on your behalf [2].",
     citations: [
-      { index: 1, title: "CS2030 Project Guidelines", url: "https://canvas.nus.edu.sg", domain: "canvas.nus.edu.sg", excerpt: "Students are expected to utilize Java Streams and Optional for data manipulation." },
-      { index: 2, title: "Lecture 7: Advanced Streams", url: "https://canvas.nus.edu.sg", domain: "canvas.nus.edu.sg", excerpt: "Chaining stream operations allows for concise and readable data processing." }
+      { index: 1, title: "SLTF Application Portal", url: "https://sltf.gov.gh", domain: "sltf.gov.gh", excerpt: "New applicants must register with a valid Ghana Card and complete the online loan application." },
+      { index: 2, title: "SLTF Documentation Requirements", url: "https://sltf.gov.gh", domain: "sltf.gov.gh", excerpt: "Applicants must provide an admission letter, Ghana Card, and guarantor information." }
     ],
-    followUps: ["Explain Java Optional", "Give me a code example", "Open Lecture 7 slides"],
-    toolChips: ["📚 Scanning CS2030 materials...", "🔍 Finding code examples..."]
+    followUps: ["How much does SLTF cover?", "When are SLTF disbursements made?", "Can postgraduate students apply?"],
+    toolChips: ["🏦 Fetching SLTF information...", "📋 Checking eligibility criteria..."]
   }
 ];
 
 export function getSimulatedResponse(query: string): SimulatedResponse {
   const lowerQuery = query.toLowerCase();
-  if (lowerQuery.includes('plan') || lowerQuery.includes('semester') || lowerQuery.includes('course')) {
+  if (lowerQuery.includes('register') || lowerQuery.includes('course') || lowerQuery.includes('mis') || lowerQuery.includes('herc')) {
     return responses[0];
   }
-  if (lowerQuery.includes('deadline') || lowerQuery.includes('urgent') || lowerQuery.includes('due')) {
+  if (lowerQuery.includes('fee') || lowerQuery.includes('pay') || lowerQuery.includes('finance')) {
     return responses[1];
   }
-  if (lowerQuery.includes('hall') || lowerQuery.includes('stay') || lowerQuery.includes('apply')) {
+  if (lowerQuery.includes('add') || lowerQuery.includes('drop') || lowerQuery.includes('withdraw') || lowerQuery.includes('deadline')) {
     return responses[2];
   }
-  if (lowerQuery.includes('help') || lowerQuery.includes('project') || lowerQuery.includes('cs2030')) {
+  if (lowerQuery.includes('sltf') || lowerQuery.includes('loan') || lowerQuery.includes('scholarship')) {
     return responses[3];
   }
-  // Default to a random response
   return responses[Math.floor(Math.random() * responses.length)];
 }
