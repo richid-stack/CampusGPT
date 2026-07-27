@@ -1,16 +1,17 @@
-import { useParams } from 'wouter';
+import { useParams, useSearch } from 'wouter';
 import { ChatThread } from '../components/chat/ChatThread';
 import { Composer } from '../components/chat/Composer';
 import { VoiceCallModal } from '../components/voice/VoiceCallModal';
 import { useChat } from '../hooks/useChat';
 import { useGetThread, useCreateThread } from '@workspace/api-client-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../store/appStore';
 import { useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 
 export default function Chat() {
   const { threadId } = useParams();
+  const search = useSearch();
   const id = threadId && threadId !== 'new' ? parseInt(threadId) : null;
   const { data: thread } = useGetThread(id!, { query: { enabled: !!id } as any });
   const [, setLocation] = useLocation();
@@ -18,6 +19,7 @@ export default function Chat() {
   const queryClient = useQueryClient();
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceMode, setVoiceMode] = useState<'chat' | 'walk'>('chat');
+  const didAutoSend = useRef(false);
 
   const { setRightPanelTab, setActiveThreadId } = useAppStore();
 
@@ -29,6 +31,18 @@ export default function Chat() {
   } = useChat(id);
 
   useEffect(() => { if (id) setActiveThreadId(id); }, [id, setActiveThreadId]);
+
+  // Auto-send initial message passed from Home via ?q= query param
+  useEffect(() => {
+    if (!id || didAutoSend.current) return;
+    const params = new URLSearchParams(search);
+    const initial = params.get('q');
+    if (!initial) return;
+    didAutoSend.current = true;
+    // Remove the query param from the URL without navigation
+    window.history.replaceState(null, '', `/chat/${id}`);
+    sendMessage(initial, id);
+  }, [id, search, sendMessage]);
 
   const handleCreateThread = async (title: string) => {
     const newThread = await createThread.mutateAsync({

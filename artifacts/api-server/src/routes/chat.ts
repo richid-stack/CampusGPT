@@ -8,16 +8,17 @@ import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+// Models confirmed available on Groq as of July 2026
 const MODELS = {
-  default: "qwen/qwen3-32b",
-  smart:   "meta-llama/llama-4-scout-17b-16e-instruct",
-  fast:    "qwen/qwen3.6-27b",
+  default: "llama-3.3-70b-versatile",   // best general quality
+  smart:   "qwen/qwen3.6-27b",           // reasoning / complex queries
+  fast:    "llama-3.1-8b-instant",       // quick simple queries
 };
 
 const MODEL_LABELS: Record<string, string> = {
-  "qwen/qwen3-32b":                            "Qwen 3 · 32B",
-  "meta-llama/llama-4-scout-17b-16e-instruct": "Llama 4 Scout",
-  "qwen/qwen3.6-27b":                          "Qwen 3 · 27B",
+  "llama-3.3-70b-versatile": "Llama 3.3 · 70B",
+  "qwen/qwen3.6-27b":        "Qwen 3.6 · 27B",
+  "llama-3.1-8b-instant":    "Llama 3.1 · 8B",
 };
 
 const SMART_KEYWORDS = [
@@ -36,9 +37,8 @@ function selectModel(content: string, requestedMode?: string): keyof typeof MODE
 }
 
 /**
- * Strip <think>…</think> blocks from Qwen 3's chain-of-thought output so they
- * never reach the user. Operates on a rolling buffer so partial tags that span
- * chunk boundaries are handled correctly.
+ * Strip <think>…</think> chain-of-thought blocks (Qwen 3 emits these).
+ * Operates on a rolling buffer so partial tags spanning chunk boundaries work.
  */
 function makeThinkFilter() {
   let buf = "";
@@ -52,7 +52,6 @@ function makeThinkFilter() {
       if (!inThink) {
         const start = buf.indexOf("<think>");
         if (start === -1) {
-          // No opening tag — safe to emit everything except a trailing partial tag
           const guard = Math.max(0, buf.length - 7);
           out += buf.slice(0, guard);
           buf = buf.slice(guard);
@@ -63,11 +62,7 @@ function makeThinkFilter() {
         inThink = true;
       } else {
         const end = buf.indexOf("</think>");
-        if (end === -1) {
-          // Still inside a think block — discard everything
-          buf = "";
-          break;
-        }
+        if (end === -1) { buf = ""; break; }
         buf = buf.slice(end + 8);
         inThink = false;
       }
@@ -96,8 +91,8 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       .orderBy(asc(messagesTable.createdAt))
       .limit(20);
 
-    const modelKey = selectModel(content.trim(), mode);
-    const modelId  = MODELS[modelKey];
+    const modelKey  = selectModel(content.trim(), mode);
+    const modelId   = MODELS[modelKey];
     const systemPrompt = mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT;
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [

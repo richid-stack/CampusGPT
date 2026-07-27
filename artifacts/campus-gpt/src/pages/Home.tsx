@@ -19,18 +19,14 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [voiceOpen, setVoiceOpen] = useState(false);
 
-  const createAndGoToChat = async (content: string): Promise<number> => {
-    const thread = await createThread.mutateAsync({
-      data: { title: content.slice(0, 60), space: 'academic' },
-    });
-    queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
-    return thread.id;
-  };
-
   const handleSend = async (content: string) => {
     try {
-      const id = await createAndGoToChat(content);
-      setLocation(`/chat/${id}`);
+      const thread = await createThread.mutateAsync({
+        data: { title: content.slice(0, 60), space: 'academic' },
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
+      // Pass initial message as query param so Chat auto-sends it to the AI
+      setLocation(`/chat/${thread.id}?q=${encodeURIComponent(content)}`);
     } catch (err) {
       console.error('Failed to create thread:', err);
     }
@@ -43,22 +39,37 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
-      {/* Large faded blue orb — decorative background */}
+
+      {/* Outer soft glow — wide, very faded */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-28 md:-top-20 w-[520px] h-[520px] md:w-[680px] md:h-[680px] rounded-full opacity-[0.13] blur-[80px]"
-        style={{ background: 'radial-gradient(circle, #2E6BFF 0%, #6366f1 55%, transparent 75%)' }}
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-40 w-[700px] h-[700px] rounded-full"
+        style={{
+          background: 'radial-gradient(circle, #2E6BFF 0%, #6366f1 40%, transparent 70%)',
+          opacity: 0.18,
+          filter: 'blur(60px)',
+        }}
+      />
+      {/* Inner bright core */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-24 w-[340px] h-[340px] rounded-full"
+        style={{
+          background: 'radial-gradient(circle, #4f8cff 0%, #818cf8 50%, transparent 75%)',
+          opacity: 0.28,
+          filter: 'blur(30px)',
+        }}
       />
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-36 md:pb-40">
-        <div className="max-w-2xl mx-auto flex flex-col items-center text-center pt-20 md:pt-28 space-y-8">
+        <div className="max-w-2xl mx-auto flex flex-col items-center text-center pt-24 md:pt-32 space-y-8">
 
           {/* Greeting */}
           <div className="space-y-2">
             <h1 className="text-3xl md:text-4xl font-semibold text-text-primary tracking-tight leading-tight">
               {greeting}{firstName ? `, ${firstName}` : ''}
             </h1>
-            <p className="text-base md:text-lg text-text-secondary">
+            <p className="text-base text-text-secondary">
               Your campus, in conversation.
             </p>
           </div>
@@ -69,7 +80,7 @@ export default function Home() {
               <button
                 key={s}
                 onClick={() => handleSend(s)}
-                className="text-left px-4 py-3 rounded-xl border border-border bg-card hover:bg-background hover:border-brand-500/60 transition-colors text-text-secondary hover:text-text-primary text-sm font-medium shadow-sm active:scale-[0.98]"
+                className="text-left px-4 py-3 rounded-xl border border-border bg-card hover:bg-background hover:border-brand-500/60 transition-all duration-150 text-text-secondary hover:text-text-primary text-sm font-medium shadow-sm active:scale-[0.98]"
               >
                 {s}
               </button>
@@ -92,9 +103,12 @@ export default function Home() {
           threadId={null}
           onClose={() => setVoiceOpen(false)}
           onCreateThread={async () => {
-            const id = await createAndGoToChat('Voice chat');
-            setLocation(`/chat/${id}`);
-            return id;
+            const thread = await createThread.mutateAsync({
+              data: { title: 'Voice chat', space: 'academic' },
+            });
+            queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
+            setLocation(`/chat/${thread.id}`);
+            return thread.id;
           }}
         />
       )}

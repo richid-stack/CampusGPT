@@ -1,14 +1,9 @@
 import { Link, useLocation } from 'wouter';
-import { 
-  MessageSquarePlus, 
-  Book, 
-  GraduationCap, 
-  Calendar, 
-  Bell, 
-  Settings, 
-  Moon, 
+import {
+  MessageSquarePlus,
+  Settings,
+  Moon,
   Sun,
-  LayoutDashboard,
   X,
   Pin,
   Clock,
@@ -28,14 +23,6 @@ export function Sidebar({ onNavClick }: SidebarProps) {
   const { data: pinnedThreads, isLoading: loadingPinned } = useGetPinnedThreads();
 
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light');
-
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Home', href: '/' },
-    { icon: Book, label: 'Documents', href: '/documents' },
-    { icon: GraduationCap, label: 'Academic Planner', href: '/planner' },
-    { icon: Calendar, label: 'Timetable', href: '/timetable' },
-    { icon: Bell, label: 'Notifications', href: '/notifications' },
-  ];
 
   return (
     <aside 
@@ -131,20 +118,8 @@ export function Sidebar({ onNavClick }: SidebarProps) {
           </div>
         )}
 
-        {/* My Campus */}
-        <div className="px-3 flex flex-col gap-1 mt-auto pt-2 border-t border-sidebar-border">
-          {!sidebarCollapsed && <h3 className="text-xs font-semibold text-text-tertiary px-3 mb-1.5 uppercase tracking-wider">My Campus</h3>}
-          {navItems.map(item => (
-            <Link key={item.href} href={item.href} onClick={onNavClick}>
-              <div className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer text-sm font-medium ${
-                location === item.href ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-sidebar-accent text-sidebar-foreground'
-              }`}>
-                <item.icon className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span className="flex-1 truncate">{item.label}</span>}
-              </div>
-            </Link>
-          ))}
-        </div>
+        {/* spacer */}
+        <div className="mt-auto" />
       </div>
 
       {/* Footer */}
