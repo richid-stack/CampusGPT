@@ -4,6 +4,7 @@ import { AssistantMessage } from './AssistantMessage';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { ToolChip } from './ToolChip';
 import { useListMessages } from '@workspace/api-client-react';
+import type { NavDestination } from '../../services/navigationService';
 
 interface ChatThreadProps {
   threadId: number;
@@ -13,11 +14,12 @@ interface ChatThreadProps {
   streamedContent: string;
   streamedModel?: string | null;
   streamedModelLabel?: string | null;
+  navigationCard?: NavDestination | null;
 }
 
 export function ChatThread({
   threadId, isThinking, currentToolChip, isStreaming,
-  streamedContent, streamedModel, streamedModelLabel,
+  streamedContent, streamedModel, streamedModelLabel, navigationCard,
 }: ChatThreadProps) {
   const { data: messages, isLoading } = useListMessages(threadId);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,7 @@ export function ChatThread({
             isStreaming={true}
             model={streamedModel}
             modelLabel={streamedModelLabel}
+            navigationCard={navigationCard}
           />
         )}
       </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppStore } from '../store/appStore';
+import type { NavDestination } from '../services/navigationService';
 
 export function useChat(threadId: number | null) {
   const [isThinking, setIsThinking]         = useState(false);
@@ -8,6 +9,7 @@ export function useChat(threadId: number | null) {
   const [isStreaming, setIsStreaming]         = useState(false);
   const [streamedModel, setStreamedModel]     = useState<string | null>(null);
   const [streamedModelLabel, setStreamedModelLabel] = useState<string | null>(null);
+  const [navigationCard, setNavigationCard]   = useState<NavDestination | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const queryClient = useQueryClient();
   const { setStreamingMessageId } = useAppStore();
@@ -26,6 +28,7 @@ export function useChat(threadId: number | null) {
     setStreamedContent('');
     setStreamedModel(null);
     setStreamedModelLabel(null);
+    setNavigationCard(null);
 
     try {
       const ac = new AbortController();
@@ -66,9 +69,11 @@ export function useChat(threadId: number | null) {
             const payload = JSON.parse(raw) as {
               delta?: string; done?: boolean;
               model?: string; modelLabel?: string; error?: string;
+              navigationCard?: NavDestination;
             };
             if (payload.error) { setStreamedContent(prev => prev + '\n\n⚠️ Connection error. Please try again.'); break; }
             if (payload.delta) setStreamedContent(prev => prev + payload.delta);
+            if (payload.navigationCard) setNavigationCard(payload.navigationCard);
             if (payload.done) {
               if (payload.model)      setStreamedModel(payload.model);
               if (payload.modelLabel) setStreamedModelLabel(payload.modelLabel);
@@ -101,5 +106,6 @@ export function useChat(threadId: number | null) {
     isThinking, currentToolChip: null,
     isStreaming, streamedContent,
     streamedModel, streamedModelLabel,
+    navigationCard,
   };
 }

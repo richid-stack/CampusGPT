@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { messagesTable, threadsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
+import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
 
 const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -81,6 +82,41 @@ router.post("/threads/:threadId/chat", async (req, res) => {
   const text = content?.trim() ?? "";
   const hasImage = !!imageBase64;
 
+  // ── Detect navigation intent early (runs in parallel with AI stream) ──────
+  const navIntent = !hasImage && isNavigationIntent(text);
+  let navLocationPromise: Promise<ReturnType<typeof findLocationByName>> | null = null;
+
+  if (navIntent) {
+    navLocationPromise = (async () => {
+      // 1. Try direct alias matching first (fast, no API call)
+      const direct = findLocationByName(text);
+      if (direct) return direct;
+
+      // 2. Ask the fast model to extract just the destination name
+      try {
+        const extraction = await groq.chat.completions.create({
+          model: MODELS.fast,
+          messages: [
+            {
+              role: "system",
+              content: `You extract campus location names from user queries about University of Ghana, Legon.
+Known locations: ${CAMPUS_LOCATIONS.map(l => l.name).join(", ")}.
+Reply with ONLY the location name — nothing else. If unsure, reply with the most likely match.`,
+            },
+            { role: "user", content: text },
+          ],
+          stream: false,
+          max_tokens: 20,
+          temperature: 0,
+        });
+        const extracted = extraction.choices[0]?.message?.content?.trim() ?? "";
+        return extracted ? findLocationByName(extracted) : null;
+      } catch {
+        return null;
+      }
+    })();
+  }
+
   try {
     await db.insert(messagesTable).values({ threadId, role: "user", content: text || "[image]" });
     await db.update(threadsTable)
@@ -152,12 +188,40 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       }
     }
 
-    await db.insert(messagesTable).values({ threadId, role: "assistant", content: fullContent });
+    // ── Resolve navigation card (parallel promise was already running) ──────
+    const navLocation = navLocationPromise ? await navLocationPromise : null;
+    const navData = navLocation
+      ? {
+          id: navLocation.id,
+          name: navLocation.name,
+          lat: navLocation.lat,
+          lng: navLocation.lng,
+          description: navLocation.description,
+          address: navLocation.address,
+          category: navLocation.category,
+          nearbyLandmarks: navLocation.nearbyLandmarks,
+          contact: navLocation.contact,
+          hours: navLocation.hours,
+          services: navLocation.services,
+        }
+      : null;
+
+    // Persist navigationCard data embedded in the assistant message content
+    const navTag = navData ? `\n\n<!--NAV:${JSON.stringify(navData)}-->` : "";
+    const savedContent = fullContent + navTag;
+
+    await db.insert(messagesTable).values({ threadId, role: "assistant", content: savedContent });
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
     const label = MODEL_LABELS[modelId] ?? modelId;
+
+    // Emit navigationCard event BEFORE done so frontend can render card
+    if (navData) {
+      res.write(`data: ${JSON.stringify({ navigationCard: navData })}\n\n`);
+    }
+
     res.write(`data: ${JSON.stringify({ done: true, model: modelId, modelLabel: label, mode: modelKey })}\n\n`);
     res.end();
   } catch (err: any) {

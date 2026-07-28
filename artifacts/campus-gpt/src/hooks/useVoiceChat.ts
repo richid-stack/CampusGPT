@@ -123,11 +123,13 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
       }
 
       if (fullResponse) {
-        // Strip markdown for spoken output
+        // Strip markdown, nav tags, and emoji for spoken output
         const clean = fullResponse
+          .replace(/<!--NAV:[\s\S]*?-->/g, '')       // strip navigation tag
           .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
           .replace(/#+\s/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
-          .replace(/`{1,3}[^`]*`{1,3}/g, '').replace(/[⛔📍🎓📚🏛📋📅💳🔎]/gu, '')
+          .replace(/`{1,3}[^`]*`{1,3}/g, '')
+          .replace(/[⛔📍🎓📚🏛📋📅💳🔎🏥🏠🍽⚽🏢🚪🏦📖]/gu, '')
           .replace(/\n{2,}/g, '. ').replace(/\n/g, ' ').trim();
         await speak(clean);
       }

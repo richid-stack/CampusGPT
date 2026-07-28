@@ -1,0 +1,2 @@
+- [Google Maps Navigation Integration](google-maps-nav.md) — nav cards embed in chat via <!--NAV:{...}--> tag in DB; use importLibrary (not load()) with @googlemaps/js-api-loader v2.x
+- [Campus Locations DB](campus-locations.md) — 27 UG Legon buildings in campusLocations.ts; isNavigationIntent() regex + findLocationByName() alias fuzzy-match used by chat route

@@ -4,13 +4,18 @@ import remarkGfm from 'remark-gfm';
 import { ThumbsUp, ThumbsDown, Copy, RotateCw, Volume2, Loader2 } from 'lucide-react';
 import { SourceCard } from './SourceCard';
 import { FollowUpChips } from './FollowUpChips';
+import { NavigationCard } from '../navigation/NavigationCard';
+import { parseNavTag, stripNavTag } from '../../services/navigationService';
 import { useState, useCallback } from 'react';
+import type { NavDestination } from '../../services/navigationService';
 
 interface AssistantMessageProps {
   message: Message | { content: string; citations?: any[]; followUps?: string[] };
   isStreaming?: boolean;
   model?: string | null;
   modelLabel?: string | null;
+  /** Live navigation card from SSE (streaming only — saved messages parse from content) */
+  navigationCard?: NavDestination | null;
 }
 
 function getModelBadge(model: string | null | undefined, label: string | null | undefined) {
@@ -65,8 +70,18 @@ function useTTS() {
   return { state, speak };
 }
 
-export function AssistantMessage({ message, isStreaming, model, modelLabel }: AssistantMessageProps) {
-  const content = isStreaming ? `${message.content}▍` : message.content;
+export function AssistantMessage({ message, isStreaming, model, modelLabel, navigationCard: liveNavCard }: AssistantMessageProps) {
+  const rawContent = message.content ?? '';
+
+  // Parse nav card from saved message content (persisted as <!--NAV:{...}-->)
+  const savedNavCard = !isStreaming ? parseNavTag(rawContent) : null;
+  const navCard = liveNavCard ?? savedNavCard;
+
+  // Display content — strip the hidden nav tag, add streaming cursor
+  const displayContent = isStreaming
+    ? `${rawContent}▍`
+    : `${stripNavTag(rawContent)}`;
+
   const badge = getModelBadge(model, modelLabel);
   const { state: ttsState, speak } = useTTS();
 
@@ -101,8 +116,11 @@ export function AssistantMessage({ message, isStreaming, model, modelLabel }: As
           prose-ul:text-text-primary prose-ol:text-text-primary
           prose-li:text-[15px] md:prose-li:text-[16px]"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
         </div>
+
+        {/* ── Navigation Card — rendered inline inside the AI response ── */}
+        {navCard && <NavigationCard destination={navCard} />}
 
         {(message as any).citations?.length > 0 && !isStreaming && (
           <div className="mt-6">
@@ -124,7 +142,7 @@ export function AssistantMessage({ message, isStreaming, model, modelLabel }: As
         {!isStreaming && (
           <div className="flex items-center gap-1 mt-4 opacity-0 hover:opacity-100 transition-opacity duration-200 -ml-2">
             <button
-              onClick={() => speak(message.content)}
+              onClick={() => speak(stripNavTag(rawContent))}
               className={`p-2 rounded-md transition-colors ${
                 ttsState === 'playing'
                   ? 'text-brand-500 bg-brand-50'
@@ -141,7 +159,7 @@ export function AssistantMessage({ message, isStreaming, model, modelLabel }: As
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><ThumbsDown className="w-4 h-4" /></button>
             <button
               className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"
-              onClick={() => navigator.clipboard?.writeText(message.content)}
+              onClick={() => navigator.clipboard?.writeText(stripNavTag(rawContent))}
             >
               <Copy className="w-4 h-4" />
             </button>

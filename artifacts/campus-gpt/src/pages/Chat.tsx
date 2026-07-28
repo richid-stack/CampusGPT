@@ -28,6 +28,7 @@ export default function Chat() {
     isThinking, currentToolChip,
     isStreaming, streamedContent,
     streamedModel, streamedModelLabel,
+    navigationCard,
   } = useChat(id);
 
   useEffect(() => { if (id) setActiveThreadId(id); }, [id, setActiveThreadId]);
@@ -98,6 +99,7 @@ export default function Chat() {
           streamedContent={streamedContent}
           streamedModel={streamedModel}
           streamedModelLabel={streamedModelLabel}
+          navigationCard={navigationCard}
         />
       </div>
 
