@@ -92,7 +92,7 @@ export default function Home() {
       {/* Floating composer */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/95 to-transparent pt-10 pb-14 md:pb-0">
         <Composer
-          onSend={handleSend}
+          onSend={(content) => handleSend(content)}
           placeholder="Ask me anything about UG campus..."
           onOpenVoiceCall={() => setVoiceOpen(true)}
         />

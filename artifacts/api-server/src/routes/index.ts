@@ -10,6 +10,8 @@ import notificationsRouter from "./notifications";
 import plannerRouter from "./planner";
 import userRouter from "./user";
 import digestRouter from "./digest";
+import sttRouter from "./stt";
+import ttsRouter from "./tts";
 
 const router: IRouter = Router();
 
@@ -17,6 +19,8 @@ router.use(healthRouter);
 router.use(threadsRouter);
 router.use(messagesRouter);
 router.use(chatRouter);
+router.use(sttRouter);
+router.use(ttsRouter);
 router.use(documentsRouter);
 router.use(timetableRouter);
 router.use(eventsRouter);

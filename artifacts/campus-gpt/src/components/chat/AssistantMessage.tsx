@@ -1,40 +1,74 @@
 import { Message } from '@workspace/api-client-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ThumbsUp, ThumbsDown, Copy, RotateCw } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Copy, RotateCw, Volume2, Loader2 } from 'lucide-react';
 import { SourceCard } from './SourceCard';
 import { FollowUpChips } from './FollowUpChips';
+import { useState, useCallback } from 'react';
 
 interface AssistantMessageProps {
-  message: Message | {
-    content: string;
-    citations?: any[];
-    followUps?: string[];
-  };
+  message: Message | { content: string; citations?: any[]; followUps?: string[] };
   isStreaming?: boolean;
   model?: string | null;
   modelLabel?: string | null;
 }
 
-function getModelBadge(model: string | null | undefined, label: string | null | undefined): { text: string; color: string } {
+function getModelBadge(model: string | null | undefined, label: string | null | undefined) {
   const m = model ?? '';
   const display = label || (
-    m.includes('qwen3-32b') ? 'Qwen 3 · 32B' :
-    m.includes('qwen3.6')   ? 'Qwen 3 · 27B' :
-    m.includes('llama-4-scout') ? 'Llama 4 Scout' :
-    m.includes('llama-3.3') ? 'Llama 3.3 · 70B' :
+    m.includes('gpt-oss-120b') ? 'GPT OSS · 120B' :
+    m.includes('gpt-oss-20b')  ? 'GPT OSS · 20B'  :
+    m.includes('qwen3.6')      ? 'Qwen 3.6 · 27B' :
     m ? m.split('/').pop() ?? 'CampusGPT' : 'CampusGPT'
   );
   const color =
-    m.includes('qwen')        ? 'text-violet-500' :
-    m.includes('llama-4')     ? 'text-blue-500'   :
-    m.includes('deepseek')    ? 'text-emerald-500': 'text-text-tertiary';
+    m.includes('gpt-oss-120b') ? 'text-blue-500'    :
+    m.includes('gpt-oss-20b')  ? 'text-sky-500'     :
+    m.includes('qwen')         ? 'text-violet-500'  : 'text-text-tertiary';
   return { text: display, color };
+}
+
+type SpeakState = 'idle' | 'loading' | 'playing';
+
+function useTTS() {
+  const [state, setState] = useState<SpeakState>('idle');
+  const audioRef = { current: null as HTMLAudioElement | null };
+
+  const speak = useCallback(async (text: string) => {
+    if (state === 'loading') return;
+    if (state === 'playing') {
+      audioRef.current?.pause();
+      setState('idle');
+      return;
+    }
+    setState('loading');
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error('TTS failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setState('idle'); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setState('idle'); };
+      setState('playing');
+      await audio.play();
+    } catch {
+      setState('idle');
+    }
+  }, [state]);
+
+  return { state, speak };
 }
 
 export function AssistantMessage({ message, isStreaming, model, modelLabel }: AssistantMessageProps) {
   const content = isStreaming ? `${message.content}▍` : message.content;
   const badge = getModelBadge(model, modelLabel);
+  const { state: ttsState, speak } = useTTS();
 
   return (
     <div className="flex flex-col w-full py-4 md:py-6 px-2 md:px-4 animate-in">
@@ -67,9 +101,7 @@ export function AssistantMessage({ message, isStreaming, model, modelLabel }: As
           prose-ul:text-text-primary prose-ol:text-text-primary
           prose-li:text-[15px] md:prose-li:text-[16px]"
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
 
         {(message as any).citations?.length > 0 && !isStreaming && (
@@ -91,6 +123,20 @@ export function AssistantMessage({ message, isStreaming, model, modelLabel }: As
 
         {!isStreaming && (
           <div className="flex items-center gap-1 mt-4 opacity-0 hover:opacity-100 transition-opacity duration-200 -ml-2">
+            <button
+              onClick={() => speak(message.content)}
+              className={`p-2 rounded-md transition-colors ${
+                ttsState === 'playing'
+                  ? 'text-brand-500 bg-brand-50'
+                  : 'text-text-tertiary hover:text-brand-500 hover:bg-card'
+              }`}
+              title={ttsState === 'playing' ? 'Stop speaking' : 'Listen to this'}
+            >
+              {ttsState === 'loading'
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Volume2 className="w-4 h-4" />
+              }
+            </button>
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><ThumbsUp className="w-4 h-4" /></button>
             <button className="p-2 text-text-tertiary hover:text-text-primary hover:bg-card rounded-md transition-colors"><ThumbsDown className="w-4 h-4" /></button>
             <button

@@ -52,17 +52,17 @@ export default function Chat() {
     return newThread.id;
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, imageBase64?: string, imageMime?: string) => {
     let activeId = id;
     if (!activeId) {
       try {
-        activeId = await handleCreateThread(content);
+        activeId = await handleCreateThread(content || 'Image question');
         setLocation(`/chat/${activeId}`);
-        await sendMessage(content, activeId);
+        await sendMessage(content, activeId, undefined, imageBase64, imageMime);
       } catch { /* ignore */ }
       return;
     }
-    await sendMessage(content);
+    await sendMessage(content, undefined, undefined, imageBase64, imageMime);
     setRightPanelTab('sources');
   };
 
@@ -103,7 +103,7 @@ export default function Chat() {
 
       <div className="shrink-0 bg-gradient-to-t from-background via-background/90 to-transparent pt-4">
         <Composer
-          onSend={handleSend}
+          onSend={(content, imgB64, imgMime) => handleSend(content, imgB64, imgMime)}
           isStreaming={isStreaming}
           onStop={stopStreaming}
           onOpenVoiceCall={openVoice}

@@ -8,46 +8,41 @@ import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 const router = Router();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Models confirmed available on Groq as of July 2026
+// ── Models confirmed available on Groq ─────────────────────────────────────
 const MODELS = {
-  default: "llama-3.3-70b-versatile",   // best general quality
-  smart:   "qwen/qwen3.6-27b",           // reasoning / complex queries
-  fast:    "llama-3.1-8b-instant",       // quick simple queries
+  default: "openai/gpt-oss-120b",   // flagship — complex reasoning, tools, multilingual
+  fast:    "openai/gpt-oss-20b",    // everyday quick replies
+  vision:  "qwen/qwen3.6-27b",      // image understanding
 };
 
 const MODEL_LABELS: Record<string, string> = {
-  "llama-3.3-70b-versatile": "Llama 3.3 · 70B",
-  "qwen/qwen3.6-27b":        "Qwen 3.6 · 27B",
-  "llama-3.1-8b-instant":    "Llama 3.1 · 8B",
+  "openai/gpt-oss-120b": "GPT OSS · 120B",
+  "openai/gpt-oss-20b":  "GPT OSS · 20B",
+  "qwen/qwen3.6-27b":    "Qwen 3.6 · 27B",
 };
 
-const SMART_KEYWORDS = [
-  "explain why", "explain how", "compare", "analyze", "analyse",
-  "calculate", "difference between", "critically", "evaluate",
-  "prove", "what would happen", "academic advice",
-  "gpa", "cgpa", "thesis", "dissertation", "research methodology",
+const FAST_KEYWORDS = [
+  "hi", "hello", "thanks", "okay", "ok", "bye", "yes", "no",
+  "sure", "got it", "what is", "who is", "when is", "where is",
 ];
 
-function selectModel(content: string, requestedMode?: string): keyof typeof MODELS {
-  if (requestedMode === "smart") return "smart";
+function selectModel(content: string, requestedMode?: string, hasImage?: boolean): keyof typeof MODELS {
+  if (hasImage) return "vision";
   if (requestedMode === "fast" || requestedMode === "walk") return "fast";
-  const lower = content.toLowerCase();
-  if (SMART_KEYWORDS.some(k => lower.includes(k)) || content.length > 250) return "smart";
+  if (requestedMode === "default" || requestedMode === "smart") return "default";
+  // Short simple queries → fast
+  const lower = content.toLowerCase().trim();
+  if (content.length < 60 && FAST_KEYWORDS.some(k => lower.startsWith(k))) return "fast";
   return "default";
 }
 
-/**
- * Strip <think>…</think> chain-of-thought blocks (Qwen 3 emits these).
- * Operates on a rolling buffer so partial tags spanning chunk boundaries work.
- */
+/** Strip Qwen <think>…</think> chain-of-thought from stream output */
 function makeThinkFilter() {
   let buf = "";
   let inThink = false;
-
   return function filter(delta: string): string {
     buf += delta;
     let out = "";
-
     while (true) {
       if (!inThink) {
         const start = buf.indexOf("<think>");
@@ -67,7 +62,6 @@ function makeThinkFilter() {
         inThink = false;
       }
     }
-
     return out;
   };
 }
@@ -76,11 +70,19 @@ router.post("/threads/:threadId/chat", async (req, res) => {
   const threadId = parseInt(req.params.threadId);
   if (isNaN(threadId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { content, mode } = req.body as { content?: string; mode?: string };
-  if (!content?.trim()) { res.status(400).json({ error: "Missing content" }); return; }
+  const { content, mode, imageBase64, imageMime } = req.body as {
+    content?: string;
+    mode?: string;
+    imageBase64?: string;   // base64-encoded image from frontend
+    imageMime?: string;     // e.g. "image/jpeg"
+  };
+  if (!content?.trim() && !imageBase64) { res.status(400).json({ error: "Missing content" }); return; }
+
+  const text = content?.trim() ?? "";
+  const hasImage = !!imageBase64;
 
   try {
-    await db.insert(messagesTable).values({ threadId, role: "user", content: content.trim() });
+    await db.insert(messagesTable).values({ threadId, role: "user", content: text || "[image]" });
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
@@ -91,16 +93,36 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       .orderBy(asc(messagesTable.createdAt))
       .limit(20);
 
-    const modelKey  = selectModel(content.trim(), mode);
-    const modelId   = MODELS[modelKey];
+    const modelKey = selectModel(text, mode, hasImage);
+    const modelId  = MODELS[modelKey];
     const systemPrompt = mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT;
+
+    // Build message history — earlier turns are plain text
+    const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = history
+      .slice(-8)
+      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    // Replace the last user message with vision content if an image was sent
+    let userMessage: Groq.Chat.ChatCompletionMessageParam;
+    if (hasImage) {
+      userMessage = {
+        role: "user",
+        content: [
+          ...(text ? [{ type: "text" as const, text }] : []),
+          {
+            type: "image_url" as const,
+            image_url: { url: `data:${imageMime ?? "image/jpeg"};base64,${imageBase64}` },
+          },
+        ],
+      };
+      // Remove last history entry (the one we just inserted as plain text) and replace with vision
+      historyMessages.pop();
+      historyMessages.push(userMessage);
+    }
 
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...history.slice(-8).map(m => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+      ...historyMessages,
     ];
 
     res.setHeader("Content-Type", "text/event-stream");
@@ -114,7 +136,7 @@ router.post("/threads/:threadId/chat", async (req, res) => {
       messages,
       stream: true,
       max_tokens: 1024,
-      temperature: modelKey === "smart" ? 0.4 : 0.55,
+      temperature: 0.5,
     });
 
     const thinkFilter = makeThinkFilter();
@@ -123,7 +145,6 @@ router.post("/threads/:threadId/chat", async (req, res) => {
     for await (const chunk of stream) {
       const raw = chunk.choices[0]?.delta?.content ?? "";
       if (!raw) continue;
-
       const safe = thinkFilter(raw);
       if (safe) {
         fullContent += safe;

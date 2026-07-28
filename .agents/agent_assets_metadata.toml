@@ -6,3 +6,9 @@ id = "atJEpopmpj-aYp1GQQdgG"
 uri = "file://campusgpt-source.tar.gz"
 type = "unspecified"
 title = "CampusGPT Source Code"
+
+[[outputs]]
+id = "A6gtNZvnmgdSahCUALnsP"
+uri = "file://artifacts/campus-gpt/dist/single/index.html"
+type = "unspecified"
+title = "CampusGPT — Single File Frontend"
