@@ -15,11 +15,12 @@ interface ChatThreadProps {
   streamedModel?: string | null;
   streamedModelLabel?: string | null;
   navigationCard?: NavDestination | null;
+  onRegenerate?: (content: string) => void;
 }
 
 export function ChatThread({
   threadId, isThinking, currentToolChip, isStreaming,
-  streamedContent, streamedModel, streamedModelLabel, navigationCard,
+  streamedContent, streamedModel, streamedModelLabel, navigationCard, onRegenerate,
 }: ChatThreadProps) {
   const { data: messages, isLoading } = useListMessages(threadId);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -51,11 +52,17 @@ export function ChatThread({
           </div>
         )}
 
-        {savedMessages.map(msg =>
-          msg.role === 'user'
-            ? <MessageBubble key={msg.id} message={msg} />
-            : <AssistantMessage key={msg.id} message={msg} />
-        )}
+        {savedMessages.map((msg, index) => {
+          if (msg.role === 'user') return <MessageBubble key={msg.id} message={msg} />;
+          const previous = savedMessages[index - 1];
+          return (
+            <AssistantMessage
+              key={msg.id}
+              message={msg}
+              onRegenerate={previous?.role === 'user' ? () => onRegenerate?.(previous.content) : undefined}
+            />
+          );
+        })}
 
         {isThinking && <ThinkingIndicator />}
         {currentToolChip && !isStreaming && <ToolChip text={currentToolChip} />}

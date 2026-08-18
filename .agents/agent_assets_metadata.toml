@@ -12,3 +12,17 @@ id = "A6gtNZvnmgdSahCUALnsP"
 uri = "file://artifacts/campus-gpt/dist/single/index.html"
 type = "unspecified"
 title = "CampusGPT — Single File Frontend"
+
+[[outputs]]
+id = "-Rwd_z5fb9zjLS_SV9dln"
+uri = "file://artifacts/campus-gpt/campus-gpt-src.zip"
+type = "unspecified"
+title = "CampusGPT frontend src/ — source only"
+description = "Readable, unminified src/ directory with the original components, pages, hooks, services, state, and CSS folder structure."
+
+[[outputs]]
+id = "xQkRWzz7TO9sPhmFO_Ddx"
+uri = "file://artifacts/campus-gpt/campus-gpt-source.zip"
+type = "unspecified"
+title = "CampusGPT frontend — complete source bundle"
+description = "Readable frontend source bundle containing src/, public/, index.html, package.json, Vite configs, tsconfig.json, and the canonical pnpm-lock.yaml. No dist/ or build/ output."

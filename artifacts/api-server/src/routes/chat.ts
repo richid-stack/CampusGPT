@@ -1,7 +1,7 @@
 import { Router } from "express";
 import Groq from "groq-sdk";
 import { db } from "@workspace/db";
-import { messagesTable, threadsTable } from "@workspace/db";
+import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
@@ -37,11 +37,14 @@ function selectModel(content: string, requestedMode?: string, hasImage?: boolean
   return "default";
 }
 
-/** Strip Qwen <think>…</think> chain-of-thought from stream output */
+/** Strip Qwen <think>…</think> chain-of-thought from stream output.
+ * The final few characters are held back to detect a split `<think>` tag,
+ * so callers must flush the filter after the provider closes the stream.
+ */
 function makeThinkFilter() {
   let buf = "";
   let inThink = false;
-  return function filter(delta: string): string {
+  function filter(delta: string): string {
     buf += delta;
     let out = "";
     while (true) {
@@ -64,7 +67,42 @@ function makeThinkFilter() {
       }
     }
     return out;
+  }
+  function flush(): string {
+    if (inThink) {
+      buf = "";
+      return "";
+    }
+    const out = buf;
+    buf = "";
+    return out;
+  }
+  return { filter, flush };
+}
+
+function getCitations(text: string) {
+  const query = text.toLowerCase();
+  const citations: Array<{ title: string; url: string; snippet?: string }> = [];
+  const add = (title: string, url: string, snippet: string) => {
+    if (!citations.some(c => c.title === title)) citations.push({ title, url, snippet });
   };
+
+  if (/mis|registration|add.?drop|fees|course|ienabler/.test(query)) {
+    add("UG MIS Web (iEnabler)", "https://ienabler.ug.edu.gh", "Course registration, add/drop, fees status, and residence registration.");
+  }
+  if (/sakai|turnitin|plagiarism|assignment|gradebook/.test(query)) {
+    add("UG Sakai", "https://sakai.ug.edu.gh", "Lectures, assignments, quizzes, gradebook, and Turnitin submissions.");
+  }
+  if (/sltf|loan|financial aid/.test(query)) {
+    add("Students Loan Trust Fund", "https://sltf.gov.gh", "Official SLTF applications, eligibility, and current loan guidance.");
+  }
+  if (/defer|herc|ugrc|sts portal/.test(query)) {
+    add("UG STS Portal", "https://sts.ug.edu.gh", "Deferment forms and HERC/UGRC course registration.");
+  }
+  if (/fee|pay|account|bursary/.test(query)) {
+    add("UG Academic Affairs — Schedule of Fees", "https://ug.edu.gh/aad/schedule-fees", "Use the official page for current fee schedules; amounts change.");
+  }
+  return citations;
 }
 
 router.post("/threads/:threadId/chat", async (req, res) => {
@@ -131,7 +169,14 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
 
     const modelKey = selectModel(text, mode, hasImage);
     const modelId  = MODELS[modelKey];
-    const systemPrompt = mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT;
+    const uploadedDocs = await db
+      .select({ name: documentsTable.name, type: documentsTable.type, pageCount: documentsTable.pageCount })
+      .from(documentsTable)
+      .orderBy(asc(documentsTable.createdAt));
+    const documentContext = uploadedDocs.length
+      ? `\n\n## Student Documents Available in This Workspace\n${uploadedDocs.map(d => `- ${d.name} (${d.type}${d.pageCount ? `, ${d.pageCount} pages` : ""})`).join("\n")}\nThese documents persist across conversations. If a student asks about one, say whether you have enough extracted content to answer; do not invent document text.`
+      : "";
+    const systemPrompt = (mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT) + documentContext;
 
     // Build message history — earlier turns are plain text
     const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = history
@@ -171,7 +216,7 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
       model: modelId,
       messages,
       stream: true,
-      max_tokens: 1024,
+      max_tokens: 4096,
       temperature: 0.5,
     });
 
@@ -181,11 +226,16 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
     for await (const chunk of stream) {
       const raw = chunk.choices[0]?.delta?.content ?? "";
       if (!raw) continue;
-      const safe = thinkFilter(raw);
+      const safe = thinkFilter.filter(raw);
       if (safe) {
         fullContent += safe;
         res.write(`data: ${JSON.stringify({ delta: safe })}\n\n`);
       }
+    }
+    const tail = thinkFilter.flush();
+    if (tail) {
+      fullContent += tail;
+      res.write(`data: ${JSON.stringify({ delta: tail })}\n\n`);
     }
 
     // ── Resolve navigation card (parallel promise was already running) ──────
@@ -210,7 +260,12 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
     const navTag = navData ? `\n\n<!--NAV:${JSON.stringify(navData)}-->` : "";
     const savedContent = fullContent + navTag;
 
-    await db.insert(messagesTable).values({ threadId, role: "assistant", content: savedContent });
+    await db.insert(messagesTable).values({
+      threadId,
+      role: "assistant",
+      content: savedContent,
+      citations: getCitations(text),
+    });
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));

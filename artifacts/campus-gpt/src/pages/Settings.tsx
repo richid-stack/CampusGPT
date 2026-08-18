@@ -1,8 +1,10 @@
-import { Settings as SettingsIcon, User } from 'lucide-react';
+import { Settings as SettingsIcon, User, Volume2 } from 'lucide-react';
 import { useGetUserProfile } from '@workspace/api-client-react';
+import { useAppStore } from '../store/appStore';
 
 export default function Settings() {
   const { data: profile, isLoading } = useGetUserProfile();
+  const { voiceOutputEnabled, setVoiceOutputEnabled } = useAppStore();
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -88,6 +90,30 @@ export default function Settings() {
                 </div>
               </div>
             )}
+
+            {/* Voice preference */}
+            <div className="pt-6 border-t border-border space-y-3">
+              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider">Voice</h3>
+              <div className="flex items-center justify-between gap-4 p-4 bg-card border border-border rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                    <Volume2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Voice replies</p>
+                    <p className="text-xs text-text-tertiary mt-0.5">Keep voice output ready in voice sessions</p>
+                  </div>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={voiceOutputEnabled}
+                  onClick={() => setVoiceOutputEnabled(!voiceOutputEnabled)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${voiceOutputEnabled ? 'bg-brand-500' : 'bg-border'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${voiceOutputEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
 
             <div className="pt-6 border-t border-border flex justify-end">
               <button className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">

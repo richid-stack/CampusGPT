@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -57,24 +57,24 @@
   --background: #FFFFFF;
   --sidebar: #F8FAFB;
   --card: #F1F4F6;
-  
+
   --text-primary: #0B0D10;
   --text-secondary: #525866;
   --text-tertiary: #8C95A4;
   --foreground: #0B0D10;
-  
+
   --border: #E5E8EC;
-  
-  --brand-50: #EFF6FF;
+
+  --brand-50:  #EFF6FF;
   --brand-500: #2E6BFF;
   --brand-600: #1E54E6;
-  
+
   --accent-warm: #FFB454;
-  
+
   --success: #1BAE7E;
   --warning: #E4A11B;
-  --danger: #E5484D;
-  
+  --danger:  #E5484D;
+
   --radius: 0.5rem;
 }
 
@@ -82,54 +82,129 @@
   --background: #0B0D10;
   --sidebar: #131518;
   --card: #1A1D21;
-  
+
   --text-primary: #F8FAFB;
   --text-secondary: #A0A5B1;
   --text-tertiary: #6B7280;
   --foreground: #F8FAFB;
-  
+
   --border: #2A2E35;
-  
-  --brand-50: #1A2847;
+
+  --brand-50:  #1A2847;
   --brand-500: #5C8BFF;
   --brand-600: #749CFF;
-  
+
   --accent-warm: #FFC57A;
-  
+
   --success: #22C55E;
   --warning: #F59E0B;
-  --danger: #EF4444;
+  --danger:  #EF4444;
 }
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 @layer base {
-  * {
-    @apply border-border;
+  * { @apply border-border; }
+  body { @apply font-sans antialiased bg-background text-foreground; }
+
+  /* Polished focus rings — visible only on keyboard nav */
+  *:focus-visible {
+    outline: 2px solid var(--brand-500);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
-  body {
-    @apply font-sans antialiased bg-background text-foreground;
-  }
+  button:focus:not(:focus-visible),
+  a:focus:not(:focus-visible) { outline: none; }
 }
 
+/* ── Custom scrollbars ────────────────────────────────────────────────────── */
+::-webkit-scrollbar             { width: 5px; height: 5px; }
+::-webkit-scrollbar-track       { background: transparent; }
+::-webkit-scrollbar-thumb       { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+/* ── Animations ───────────────────────────────────────────────────────────── */
 .animate-in {
-  animation: animate-in 0.2s ease-out;
+  animation: animateIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-@keyframes animate-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes animateIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Staggered message arrival */
+.msg-enter {
+  animation: msgSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes msgSlide {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Shimmer skeleton */
 .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--card) 0%,
+    var(--border) 50%,
+    var(--card) 100%
+  );
   background-size: 200% 100%;
-  animation: shimmer 2s linear infinite;
+  animation: shimmer 1.6s linear infinite;
 }
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
 }
 
-.blink {
-  animation: blink 1s step-end infinite;
+.blink { animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Fade in scale — for modals / palettes */
+.fade-scale-in {
+  animation: fadeScaleIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-@keyframes blink {
-  50% { opacity: 0; }
+@keyframes fadeScaleIn {
+  from { opacity: 0; transform: scale(0.97) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
+
+/* ── Code blocks ──────────────────────────────────────────────────────────── */
+.code-block-wrapper pre {
+  margin: 0 !important;
+  border-radius: 0 !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+
+/* ── Prose tweaks ─────────────────────────────────────────────────────────── */
+.prose table {
+  font-size: 0.875rem;
+  width: 100%;
+  border-collapse: collapse;
+}
+.prose thead tr th {
+  background: var(--card);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+}
+.prose tbody tr td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+.prose tbody tr:nth-child(even) td { background: var(--card); }
+.prose tbody tr:hover td { background: var(--brand-50); transition: background 0.1s; }
+
+/* ── Selection ────────────────────────────────────────────────────────────── */
+::selection { background: var(--brand-500); color: #fff; }
+
+/* ── Transitions ──────────────────────────────────────────────────────────── */
+.transition-smooth { transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1); }

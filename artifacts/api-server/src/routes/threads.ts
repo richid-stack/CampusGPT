@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { threadsTable, messagesTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { CreateThreadBody, UpdateThreadBody } from "@workspace/api-zod";
 import { z } from "zod/v4";
 
@@ -54,6 +54,40 @@ router.get("/threads/recent", async (req, res) => {
     .orderBy(desc(threadsTable.lastMessageAt))
     .limit(5);
   res.json(threads.map(t => ({
+    ...t,
+    createdAt: t.createdAt.toISOString(),
+    updatedAt: t.updatedAt.toISOString(),
+    lastMessageAt: t.lastMessageAt?.toISOString() ?? null,
+  })));
+});
+
+// Full-text conversation search used by the command palette and sidebar.
+// Search both thread titles and message content so older conversations remain discoverable.
+router.get("/threads/search", async (req, res) => {
+  const query = String(req.query.q ?? "").trim();
+  if (!query) { res.json([]); return; }
+
+  const matchingMessages = await db
+    .select({ threadId: messagesTable.threadId })
+    .from(messagesTable)
+    .where(ilike(messagesTable.content, `%${query}%`));
+
+  const ids = [...new Set(matchingMessages.map(m => m.threadId))];
+  const titleMatches = await db
+    .select()
+    .from(threadsTable)
+    .where(ilike(threadsTable.title, `%${query}%`))
+    .orderBy(desc(threadsTable.updatedAt));
+
+  const titleIds = new Set(titleMatches.map(t => t.id));
+  const messageMatches = ids.length
+    ? await db.select().from(threadsTable).where(or(...ids.map(id => eq(threadsTable.id, id))))
+    : [];
+
+  const merged = [...titleMatches, ...messageMatches.filter(t => !titleIds.has(t.id))]
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+  res.json(merged.map(t => ({
     ...t,
     createdAt: t.createdAt.toISOString(),
     updatedAt: t.updatedAt.toISOString(),

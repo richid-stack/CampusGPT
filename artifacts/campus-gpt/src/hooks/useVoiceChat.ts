@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useAppStore } from '../store/appStore';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -13,6 +14,7 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
   const [transcript, setTranscript]   = useState('');
   const [aiResponse, setAiResponse]   = useState('');
   const [error, setError]             = useState<string | null>(null);
+  const voiceOutputEnabled = useAppStore(s => s.voiceOutputEnabled);
 
   const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
   const audioChunksRef    = useRef<Blob[]>([]);
@@ -31,6 +33,10 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
 
   /** Call Orpheus TTS via /api/tts and play the result */
   const speak = useCallback(async (text: string): Promise<void> => {
+    if (!voiceOutputEnabled) {
+      setVoiceState('idle');
+      return;
+    }
     setVoiceState('speaking');
     try {
       const ac = new AbortController();
@@ -66,7 +72,7 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
         });
       }
     }
-  }, []);
+  }, [voiceOutputEnabled]);
 
   /** Transcribe audio blob via /api/stt (Whisper Large v3 Turbo) */
   const transcribe = useCallback(async (audioBlob: Blob): Promise<string> => {

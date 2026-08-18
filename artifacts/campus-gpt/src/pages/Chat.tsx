@@ -100,6 +100,7 @@ export default function Chat() {
           streamedModel={streamedModel}
           streamedModelLabel={streamedModelLabel}
           navigationCard={navigationCard}
+          onRegenerate={(content) => sendMessage(content)}
         />
       </div>
 

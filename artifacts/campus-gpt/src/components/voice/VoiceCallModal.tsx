@@ -21,7 +21,7 @@ function Waveform({ state }: { state: VoiceState }) {
           className="rounded-full transition-all duration-200"
           style={{
             width: 3,
-            background: state === 'listening' ? '#10b981' : state === 'speaking' ? '#6366f1' : '#d1d5db',
+            background: isActive ? '#2E6BFF' : '#d1d5db',
             height: isActive ? `${h * 28}px` : '6px',
             animation: isActive ? `waveBar 0.8s ease-in-out ${i * 80}ms infinite alternate` : 'none',
           }}
@@ -43,10 +43,10 @@ function StateLabel({ state }: { state: VoiceState }) {
   };
   const color: Record<VoiceState, string> = {
     idle:       'text-text-tertiary',
-    listening:  'text-emerald-500',
+    listening:  'text-brand-500',
     processing: 'text-brand-500',
-    speaking:   'text-violet-500',
-    error:      'text-danger',
+    speaking:   'text-brand-500',
+    error:      'text-red-500',
   };
   return (
     <span className={`text-[13px] font-medium tracking-wide ${color[state]}`}>{map[state]}</span>
@@ -65,7 +65,7 @@ function Bubble({ role, text, live }: { role: 'user' | 'ai'; text: string; live?
         role === 'user'
           ? 'bg-brand-500 text-white rounded-tr-sm'
           : 'bg-card border border-border text-text-primary rounded-tl-sm'
-      } ${live ? 'opacity-70 italic' : ''}`}>
+      } ${live ? 'opacity-80' : ''}`}>
         {text}
         {live && <span className="inline-block w-1 h-3.5 ml-0.5 bg-current rounded-sm animate-pulse" />}
       </div>
@@ -76,39 +76,42 @@ function Bubble({ role, text, live }: { role: 'user' | 'ai'; text: string; live?
 /* ── Main modal ──────────────────────────────────────────────────────── */
 export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode = 'chat' }: VoiceCallModalProps) {
   const [walkMode, setWalkMode] = useState(initialMode === 'walk');
-  const [transcript, setLocalTranscript] = useState('');
   const [conversationLog, setConversationLog] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Track what we've already logged to avoid duplicates
+  const lastLoggedTranscript = useRef('');
+  const lastLoggedResponse   = useRef('');
 
   const {
     voiceState, transcript: liveTranscript, aiResponse, error, supported,
     startListening, stopListening, stopEverything,
   } = useVoiceChat({ threadId, onCreateThread, walkMode });
 
-  // Accumulate conversation history
+  // Add user transcript to log when it arrives (Whisper returns it once recording stops)
   useEffect(() => {
-    if (liveTranscript) setLocalTranscript(liveTranscript);
+    if (
+      liveTranscript &&
+      liveTranscript !== lastLoggedTranscript.current
+    ) {
+      lastLoggedTranscript.current = liveTranscript;
+      setConversationLog(prev => [...prev, { role: 'user', text: liveTranscript }]);
+    }
   }, [liveTranscript]);
 
+  // Add AI response to log when speaking is done or when we have a response and go idle
   useEffect(() => {
-    // When AI starts a new response, save the user's last transcript
-    if (voiceState === 'processing' && transcript) {
-      setConversationLog(prev => [...prev, { role: 'user', text: transcript }]);
-      setLocalTranscript('');
-    }
-  }, [voiceState, transcript]);
-
-  useEffect(() => {
-    // When AI response is complete (speaking stopped or went idle from speaking)
-    if (voiceState === 'idle' && aiResponse && conversationLog.length > 0) {
-      setConversationLog(prev => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'ai' && last.text === aiResponse) return prev;
-        return [...prev, { role: 'ai', text: aiResponse }];
-      });
+    if (
+      voiceState === 'idle' &&
+      aiResponse &&
+      aiResponse !== lastLoggedResponse.current
+    ) {
+      lastLoggedResponse.current = aiResponse;
+      setConversationLog(prev => [...prev, { role: 'ai', text: aiResponse }]);
     }
   }, [voiceState, aiResponse]);
 
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -121,12 +124,12 @@ export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode 
     else if (voiceState === 'idle' || voiceState === 'error') startListening();
   };
 
-  const isBusy = voiceState === 'processing' || voiceState === 'speaking';
+  const isBusy    = voiceState === 'processing' || voiceState === 'speaking';
   const isListening = voiceState === 'listening';
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      {/* Blurred backdrop — chat visible behind */}
+      {/* Blurred backdrop */}
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-[6px]"
         onClick={handleEndCall}
@@ -149,7 +152,7 @@ export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode 
             <span className="font-semibold text-[15px] text-text-primary">CampusGPT Voice</span>
             <span className="text-[12px] text-text-tertiary">University of Ghana · Legon</span>
           </div>
-          {/* Mode toggle */}
+          {/* Mode toggle — all brand-500 */}
           <div className="flex items-center gap-1.5 p-1 bg-card rounded-xl border border-border">
             <button
               onClick={() => setWalkMode(false)}
@@ -162,7 +165,7 @@ export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode 
             <button
               onClick={() => setWalkMode(true)}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[12px] font-medium transition-colors ${
-                walkMode ? 'bg-emerald-500 text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
+                walkMode ? 'bg-brand-500 text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               <MapPin className="w-3 h-3" /> Walk
@@ -170,19 +173,21 @@ export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode 
           </div>
         </div>
 
-        {/* Walk hint */}
+        {/* Walk mode hint */}
         {walkMode && conversationLog.length === 0 && voiceState === 'idle' && (
-          <div className="mx-4 mb-2 rounded-xl bg-emerald-50 border border-emerald-100 px-3.5 py-2.5 shrink-0">
-            <p className="text-emerald-700 text-[13px] font-medium">Campus Navigator active</p>
-            <p className="text-emerald-600 text-[12px] mt-0.5">Say where you want to go — e.g. "Take me to Balme Library"</p>
+          <div className="mx-4 mb-2 rounded-xl bg-brand-500/5 border border-brand-500/10 px-3.5 py-2.5 shrink-0">
+            <p className="text-brand-500 text-[13px] font-medium">Campus Navigator active</p>
+            <p className="text-text-secondary text-[12px] mt-0.5">
+              Say where you want to go — e.g. "Take me to Balme Library"
+            </p>
           </div>
         )}
 
-        {/* Not supported */}
+        {/* Browser not supported */}
         {!supported && (
           <div className="mx-4 mb-2 rounded-xl bg-amber-50 border border-amber-100 px-3.5 py-2.5 shrink-0">
-            <p className="text-amber-700 text-[13px] font-medium">Voice requires Chrome</p>
-            <p className="text-amber-600 text-[12px] mt-0.5">Please open CampusGPT in Google Chrome to use voice.</p>
+            <p className="text-amber-700 text-[13px] font-medium">Voice requires a modern browser</p>
+            <p className="text-amber-600 text-[12px] mt-0.5">Please open CampusGPT in Chrome or Safari to use voice.</p>
           </div>
         )}
 
@@ -199,38 +204,49 @@ export function VoiceCallModal({ threadId, onClose, onCreateThread, initialMode 
               <p className="text-text-tertiary text-[13px]">Your conversation will appear here</p>
             </div>
           )}
+
           {conversationLog.map((entry, i) => (
             <Bubble key={i} role={entry.role} text={entry.text} />
           ))}
-          {/* Live transcript (user speaking) */}
-          {isListening && liveTranscript && (
-            <Bubble role="user" text={liveTranscript} live />
+
+          {/* Live state indicators */}
+          {isListening && (
+            liveTranscript
+              ? <Bubble role="user" text={liveTranscript} live />
+              : (
+                <div className="flex justify-end mb-2">
+                  <div className="px-3.5 py-2.5 rounded-2xl rounded-tr-sm bg-brand-500/10 border border-brand-500/20 text-brand-500 text-[13px] italic">
+                    Listening…
+                  </div>
+                </div>
+              )
           )}
-          {/* Live AI response (speaking) */}
           {(voiceState === 'processing' || voiceState === 'speaking') && aiResponse && (
             <Bubble role="ai" text={aiResponse} live />
+          )}
+          {voiceState === 'processing' && !aiResponse && (
+            <div className="flex items-center gap-2 mb-2 pl-7">
+              <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
           )}
         </div>
 
         {/* Bottom bar */}
         <div className="shrink-0 border-t border-border px-5 py-4 flex items-center justify-between">
-          {/* Waveform + state */}
           <div className="flex flex-col gap-1">
             <Waveform state={voiceState} />
             <StateLabel state={voiceState} />
           </div>
 
-          {/* Controls */}
           <div className="flex items-center gap-3">
+            {/* Mic button — always brand-500, red when listening */}
             <button
               onClick={handleMic}
               disabled={isBusy || !supported}
               className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 shadow-md ${
-                isListening
-                  ? 'bg-red-500 text-white'
-                  : walkMode
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-brand-500 text-white'
+                isListening ? 'bg-red-500 text-white' : 'bg-brand-500 text-white'
               }`}
             >
               {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}

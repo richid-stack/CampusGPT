@@ -53,14 +53,24 @@ export function buildGoogleMapsUrl(dest: NavDestination, userLat?: number, userL
   return `https://www.google.com/maps/search/?api=1&query=${destination}`;
 }
 
-/** Street View static image URLs at different headings for a photo carousel */
+/**
+ * Generate map preview images using the Google Maps Static API.
+ * These work reliably with any Maps API key (no billing required beyond the free tier).
+ * Returns: satellite close-up, satellite wide, roadmap, and hybrid overview.
+ */
 export function getStreetViewPhotos(lat: number, lng: number, apiKey: string): string[] {
-  const base = `https://maps.googleapis.com/maps/api/streetview`;
-  const size = '600x400';
-  const headings = [0, 90, 180, 270];
-  return headings.map(
-    h => `${base}?size=${size}&location=${lat},${lng}&heading=${h}&pitch=5&fov=80&key=${apiKey}`
-  );
+  const base = `https://maps.googleapis.com/maps/api/staticmap`;
+  const marker = `markers=color:0x2E6BFF%7Clabel:%20%7C${lat},${lng}`;
+  return [
+    // Satellite close-up (zoom 18)
+    `${base}?center=${lat},${lng}&zoom=18&size=600x400&maptype=satellite&${marker}&key=${apiKey}`,
+    // Hybrid (satellite + labels, zoom 17)
+    `${base}?center=${lat},${lng}&zoom=17&size=600x400&maptype=hybrid&${marker}&key=${apiKey}`,
+    // Roadmap with context (zoom 16)
+    `${base}?center=${lat},${lng}&zoom=16&size=600x400&maptype=roadmap&${marker}&key=${apiKey}`,
+    // Wide satellite for campus context (zoom 15)
+    `${base}?center=${lat},${lng}&zoom=15&size=600x400&maptype=satellite&${marker}&key=${apiKey}`,
+  ];
 }
 
 /** Strip HTML tags from Google Maps step instructions */
