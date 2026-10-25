@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
+import { makeThinkFilter } from "../lib/thinkFilter.js";
 import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
 
 const router = Router();
@@ -35,49 +36,6 @@ function selectModel(content: string, requestedMode?: string, hasImage?: boolean
   const lower = content.toLowerCase().trim();
   if (content.length < 60 && FAST_KEYWORDS.some(k => lower.startsWith(k))) return "fast";
   return "default";
-}
-
-/** Strip Qwen <think>…</think> chain-of-thought from stream output.
- * The final few characters are held back to detect a split `<think>` tag,
- * so callers must flush the filter after the provider closes the stream.
- */
-function makeThinkFilter() {
-  let buf = "";
-  let inThink = false;
-  function filter(delta: string): string {
-    buf += delta;
-    let out = "";
-    while (true) {
-      if (!inThink) {
-        const start = buf.indexOf("<think>");
-        if (start === -1) {
-          const guard = Math.max(0, buf.length - 7);
-          out += buf.slice(0, guard);
-          buf = buf.slice(guard);
-          break;
-        }
-        out += buf.slice(0, start);
-        buf = buf.slice(start + 7);
-        inThink = true;
-      } else {
-        const end = buf.indexOf("</think>");
-        if (end === -1) { buf = ""; break; }
-        buf = buf.slice(end + 8);
-        inThink = false;
-      }
-    }
-    return out;
-  }
-  function flush(): string {
-    if (inThink) {
-      buf = "";
-      return "";
-    }
-    const out = buf;
-    buf = "";
-    return out;
-  }
-  return { filter, flush };
 }
 
 function getCitations(text: string) {
