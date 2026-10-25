@@ -2,7 +2,6 @@ import { ReactNode, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { ContextPanel } from './ContextPanel';
 import { CommandPalette } from './CommandPalette';
-import { MobileNav } from './MobileNav';
 import { useAppStore } from '../../store/appStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { Menu, X } from 'lucide-react';
@@ -46,18 +45,13 @@ export function AppShell({ children }: AppShellProps) {
           >
             <Menu className="w-5 h-5 text-text-secondary" />
           </button>
-          <span className="font-semibold text-base bg-clip-text text-transparent bg-gradient-to-r from-brand-500 to-indigo-500">
+          <span className="font-semibold text-base text-brand-500">
             CampusGPT
           </span>
         </div>
 
-        <div className="flex-1 overflow-hidden pb-16 md:pb-0 flex flex-col min-h-0">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           {children}
-        </div>
-
-        {/* Mobile bottom navigation */}
-        <div className="md:hidden">
-          <MobileNav />
         </div>
       </main>
 

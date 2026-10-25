@@ -40,27 +40,6 @@ export default function Home() {
   return (
     <div className="flex flex-col h-full bg-background relative overflow-hidden">
 
-      {/* Outer soft glow — wide, very faded */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-40 w-[700px] h-[700px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, #2E6BFF 0%, #6366f1 40%, transparent 70%)',
-          opacity: 0.18,
-          filter: 'blur(60px)',
-        }}
-      />
-      {/* Inner bright core */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-24 w-[340px] h-[340px] rounded-full"
-        style={{
-          background: 'radial-gradient(circle, #4f8cff 0%, #818cf8 50%, transparent 75%)',
-          opacity: 0.28,
-          filter: 'blur(30px)',
-        }}
-      />
-
       <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-36 md:pb-40">
         <div className="max-w-2xl mx-auto flex flex-col items-center text-center pt-24 md:pt-32 space-y-8">
 
@@ -90,7 +69,7 @@ export default function Home() {
       </div>
 
       {/* Floating composer */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/95 to-transparent pt-10 pb-14 md:pb-0">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-background via-background/95 to-transparent pt-10">
         <Composer
           onSend={(content) => handleSend(content)}
           placeholder="Ask me anything about UG campus..."
