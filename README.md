@@ -1,6 +1,6 @@
 # CampusGPT
 
-> AI assistant for University of Ghana students — powered by Groq, Qwen 3, and Llama 4.
+> AI assistant for University of Ghana students — powered by Groq (GPT-OSS and Qwen).
 
 CampusGPT is a full-stack, production-ready AI campus assistant. Students can ask about course registration, portals, halls, SLTF loans, academic policies, and get live step-by-step walking directions around Legon campus via **Walk With Me** mode.
 
@@ -10,7 +10,7 @@ CampusGPT is a full-stack, production-ready AI campus assistant. Students can as
 
 | Feature | Description |
 |---|---|
-| **AI Chat** | Streaming answers from Qwen 3-32B (default) or Llama 4 Scout (complex queries) |
+| **AI Chat** | Streaming answers from GPT-OSS 120B (default) or GPT-OSS 20B (fast replies) |
 | **Smart Model Routing** | Automatically detects complex questions and switches to the reasoning model |
 | **Walk With Me** | Voice-activated campus navigation with step-by-step Legon directions |
 | **Voice Mode** | Full speech-to-text + text-to-speech conversation overlay |
@@ -30,10 +30,10 @@ CampusGPT is a full-stack, production-ready AI campus assistant. Students can as
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS v4 |
 | **Backend** | Express 5, Node.js 24, TypeScript |
 | **Database** | PostgreSQL + Drizzle ORM |
-| **AI** | Groq SDK — Qwen 3-32B, Qwen 3-27B, Llama 4 Scout |
+| **AI** | Groq SDK — GPT-OSS 120B / 20B, Qwen 3.6 27B (vision), Whisper (STT), Orpheus (TTS) |
 | **API Contract** | OpenAPI 3 spec + Orval codegen (React Query hooks + Zod schemas) |
 | **Monorepo** | pnpm workspaces |
-| **Auth** | Session-based (express-session + PostgreSQL session store) |
+| **Auth** | None yet — single shared profile (planned) |
 
 ---
 
@@ -96,10 +96,10 @@ Create a `.env` file in the repo root:
 # Required
 DATABASE_URL=postgresql://postgres:password@localhost:5432/campusgpt
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
-SESSION_SECRET=change-this-to-a-random-32-char-string
 
 # Optional — set these if running behind a proxy
 PORT=5000           # API server port (default: 5000)
+CORS_ORIGINS=https://your-frontend.example   # comma-separated; required in production for cross-origin browsers
 ```
 
 > **Tip:** Copy `.env.example` if it exists, or create the file manually.
@@ -148,11 +148,11 @@ Then open **http://localhost:5173** (or whichever port Vite assigns).
 
 | Mode | Model | Used when |
 |---|---|---|
-| Default | `qwen/qwen3-32b` | General questions, campus info |
-| Smart | `meta-llama/llama-4-scout-17b-16e-instruct` | Complex reasoning (thesis, GPA, policy) |
-| Fast | `qwen/qwen3.6-27b` | Voice mode, Walk With Me |
+| Default | `openai/gpt-oss-120b` | General and complex questions |
+| Fast | `openai/gpt-oss-20b` | Quick replies, voice mode |
+| Vision | `qwen/qwen3.6-27b` | Image understanding |
 
-Model routing is automatic — complex questions (detected by keywords like "compare", "analyze", "explain why") are routed to the reasoning model. You can extend `selectModel()` in `artifacts/api-server/src/routes/chat.ts`.
+Model routing is automatic (see `selectModel()` in `artifacts/api-server/src/routes/chat.ts`). You can extend `selectModel()` in `artifacts/api-server/src/routes/chat.ts`.
 
 ---
 
@@ -191,8 +191,8 @@ The text is injected into the system prompt verbatim. Keep it under 6,000 tokens
 ## Extending the API
 
 1. Add a route file in `artifacts/api-server/src/routes/`
-2. Register it in `artifacts/api-server/src/index.ts`
-3. Add the endpoint to `artifacts/api-server/api-spec/openapi.yaml`
+2. Register it in `artifacts/api-server/src/routes/index.ts`
+3. Add the endpoint to `lib/api-spec/openapi.yaml`
 4. Run `pnpm --filter @workspace/api-spec run codegen` to regenerate React Query hooks
 
 ---
@@ -214,7 +214,7 @@ To change the language, edit `artifacts/campus-gpt/src/hooks/useVoiceChat.ts`.
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `GROQ_API_KEY` | Yes | Groq API key (get at console.groq.com) |
-| `SESSION_SECRET` | Yes | Express session signing secret (min 32 chars) |
+| `CORS_ORIGINS` | Prod | Comma-separated allowed browser origins (cross-origin disabled in production if unset) |
 | `PORT` | No | API server port (default: 5000) |
 | `NODE_ENV` | No | Set to `production` for production builds |
 

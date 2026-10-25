@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import { threadsTable, messagesTable } from "@workspace/db";
 import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { CreateThreadBody, UpdateThreadBody } from "@workspace/api-zod";
-import { z } from "zod/v4";
 
 const router = Router();
 
@@ -66,17 +65,19 @@ router.get("/threads/recent", async (req, res) => {
 router.get("/threads/search", async (req, res) => {
   const query = String(req.query.q ?? "").trim();
   if (!query) { res.json([]); return; }
+  // Escape LIKE wildcards so user input is matched literally.
+  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
 
   const matchingMessages = await db
     .select({ threadId: messagesTable.threadId })
     .from(messagesTable)
-    .where(ilike(messagesTable.content, `%${query}%`));
+    .where(ilike(messagesTable.content, pattern));
 
   const ids = [...new Set(matchingMessages.map(m => m.threadId))];
   const titleMatches = await db
     .select()
     .from(threadsTable)
-    .where(ilike(threadsTable.title, `%${query}%`))
+    .where(ilike(threadsTable.title, pattern))
     .orderBy(desc(threadsTable.updatedAt));
 
   const titleIds = new Set(titleMatches.map(t => t.id));
