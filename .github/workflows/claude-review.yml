@@ -1,6 +1,6 @@
 name: Claude PR review
 
-# Requires the ANTHROPIC_API_KEY repository secret. Skips forks (no secret access).
+# Requires the ANTHROPIC_API_KEY repository secret; skips cleanly without it. Skips forks.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -16,11 +16,18 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
     steps:
+      - name: Skip when ANTHROPIC_API_KEY is not configured
+        if: env.HAS_KEY != 'true'
+        run: echo "ANTHROPIC_API_KEY not set; skipping Claude review."
       - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
         with:
           fetch-depth: 1
       - uses: anthropics/claude-code-action@v1
+        if: env.HAS_KEY == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
