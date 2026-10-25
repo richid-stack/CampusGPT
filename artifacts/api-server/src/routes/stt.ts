@@ -22,7 +22,7 @@ router.post("/stt", upload.single("audio"), async (req, res) => {
     const ext    = mime.split("/")[1]?.split(";")[0] ?? "webm";
 
     // Groq SDK needs a File-like object — wrap the buffer
-    const blob = new Blob([buffer], { type: mime });
+    const blob = new Blob([new Uint8Array(buffer)], { type: mime });
     const file = new File([blob], `audio.${ext}`, { type: mime });
 
     const transcription = await groq.audio.transcriptions.create({

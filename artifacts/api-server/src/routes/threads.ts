@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import { threadsTable, messagesTable } from "@workspace/db";
 import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { CreateThreadBody, UpdateThreadBody } from "@workspace/api-zod";
-import { z } from "zod/v4";
 
 const router = Router();
 

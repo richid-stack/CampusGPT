@@ -1,0 +1,29 @@
+name: Claude PR review
+
+# Requires the ANTHROPIC_API_KEY repository secret. Skips forks (no secret access).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for correctness, security (secrets, auth,
+            injection, unbounded Groq-backed endpoints), and consistency with the
+            pnpm monorepo conventions. Be concise; comment only on real issues.
