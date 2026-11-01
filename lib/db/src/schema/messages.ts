@@ -10,6 +10,9 @@ export const messagesTable = pgTable("messages", {
   content: text("content").notNull(),
   model: text("model"),
   thinkingSeconds: integer("thinking_seconds"),
+  // Full AI SDK UI message parts (reasoning, tool steps, text). `content` stays
+  // the plain-text version for search, voice and older rows that predate parts.
+  parts: jsonb("parts"),
   citations: jsonb("citations").default([]),
   followUps: jsonb("follow_ups").default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),

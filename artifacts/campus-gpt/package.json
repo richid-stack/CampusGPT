@@ -78,8 +78,10 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@ai-sdk/react": "^4.0.163",
     "@googlemaps/js-api-loader": "^2.1.1",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "ai": "^7.0.159",
     "better-auth": "^1.7.14",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",

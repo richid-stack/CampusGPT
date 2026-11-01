@@ -150,6 +150,7 @@ export const ListMessagesResponseItem = zod.object({
   "content": zod.string(),
   "model": zod.string().nullish(),
   "thinkingSeconds": zod.number().nullish(),
+  "parts": zod.array(zod.record(zod.string(), zod.unknown())).nullish().describe('AI SDK UI message parts (text, reasoning, tool steps). Null on messages saved before parts existed.'),
   "citations": zod.array(zod.object({
   "index": zod.number(),
   "title": zod.string(),

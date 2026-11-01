@@ -18,6 +18,7 @@ export * from './listThreadsParams';
 export * from './message';
 export * from './messageInput';
 export * from './messageInputRole';
+export * from './messagePartsItem';
 export * from './messageRole';
 export * from './notification';
 export * from './notificationType';

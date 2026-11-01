@@ -64,6 +64,8 @@ export const MessageRole = {
   assistant: 'assistant',
 } as const;
 
+export type MessagePartsItem = { [key: string]: unknown };
+
 export interface Citation {
   index: number;
   title: string;
@@ -83,6 +85,11 @@ export interface Message {
   model?: string | null;
   /** @nullable */
   thinkingSeconds?: number | null;
+  /**
+     * AI SDK UI message parts (text, reasoning, tool steps). Null on messages saved before parts existed.
+     * @nullable
+     */
+  parts?: MessagePartsItem[] | null;
   citations?: Citation[];
   followUps?: string[];
   createdAt: string;
