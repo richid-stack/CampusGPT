@@ -121,11 +121,14 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
-    const history = await db
+    // Newest 20 messages, restored to chronological order. (Ordering ascending
+    // with a limit returned the *first* 20, so long chats never saw the latest turns.)
+    const recentRows = await db
       .select().from(messagesTable)
       .where(eq(messagesTable.threadId, threadId))
-      .orderBy(asc(messagesTable.createdAt))
+      .orderBy(desc(messagesTable.createdAt), desc(messagesTable.id))
       .limit(20);
+    const history = recentRows.reverse();
 
     const modelKey = selectModel(text, mode, hasImage);
     const modelId  = MODELS[modelKey];
