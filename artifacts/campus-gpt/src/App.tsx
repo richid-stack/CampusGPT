@@ -55,17 +55,23 @@ function AuthGate() {
 
   const current = isPending ? lastSession.current : session;
   const userId = current?.user.id ?? null;
-  // Never show one user's cached data to the next person who signs in.
-  useEffect(() => { queryClient.clear(); }, [userId, queryClient]);
 
-  if (!loadedOnce && isPending) {
-    return (
-      <div className="h-full flex items-center justify-center bg-background" role="status" aria-label="Loading">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  // Never show one user's cached data to the next person: clear the cache
+  // whenever the user changes, and hold the private UI back until it has been.
+  const [clearedFor, setClearedFor] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    queryClient.clear();
+    setClearedFor(userId);
+  }, [userId, queryClient]);
+
+  const splash = (
+    <div className="h-full flex items-center justify-center bg-background" role="status" aria-label="Loading">
+      <Loader2 className="w-6 h-6 animate-spin text-text-tertiary" />
+    </div>
+  );
+  if (!loadedOnce && isPending) return splash;
   if (!current) return <Login />;
+  if (clearedFor !== userId) return splash;
   return <Router />;
 }
 

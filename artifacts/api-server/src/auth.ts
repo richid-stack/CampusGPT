@@ -21,6 +21,18 @@ if (isProd && (!secret || secret.length < 32)) {
   throw new Error("BETTER_AUTH_SECRET must be set (32+ chars) in production. Generate one with: openssl rand -base64 32");
 }
 
+if (isProd && allowedEmailDomains.length === 0 && process.env.ALLOW_ANY_EMAIL !== "true") {
+  throw new Error("ALLOWED_EMAIL_DOMAINS must be set in production (e.g. st.ug.edu.gh), otherwise anyone can sign up. Set ALLOW_ANY_EMAIL=true only if that is really intended.");
+}
+
+if (isProd) {
+  try {
+    new URL(process.env.BETTER_AUTH_URL ?? "");
+  } catch {
+    throw new Error("BETTER_AUTH_URL must be set to your public site URL in production (e.g. https://campusgpt.example). It is used in emailed links and OAuth callbacks.");
+  }
+}
+
 if (isProd && !process.env.SMTP_URL) {
   throw new Error("SMTP_URL must be set in production: students cannot verify their email without it (e.g. smtp://user:pass@smtp.provider.com:587).");
 }
@@ -32,15 +44,24 @@ const corsOrigins = (process.env.CORS_ORIGINS ?? "")
   .map((o) => o.trim())
   .filter(Boolean);
 
-const microsoft =
-  process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET
-    ? {
-        clientId: process.env.MICROSOFT_CLIENT_ID,
-        clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-        // Set to your university's tenant ID to accept only its accounts.
-        tenantId: process.env.MICROSOFT_TENANT_ID ?? "common",
-      }
-    : null;
+const MULTI_TENANT_IDS = new Set(["common", "organizations", "consumers"]);
+const microsoftTenant = process.env.MICROSOFT_TENANT_ID?.trim() ?? "";
+const microsoftConfigured = Boolean(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
+
+// The domain allow-list trusts the email Microsoft returns. On a multi-tenant
+// endpoint, a user in *any* tenant (or a personal account) can present an
+// address they don't own, so a restricted deployment must pin one tenant.
+if (microsoftConfigured && allowedEmailDomains.length > 0 && (!microsoftTenant || MULTI_TENANT_IDS.has(microsoftTenant.toLowerCase()))) {
+  throw new Error("MICROSOFT_TENANT_ID must be your university's specific tenant ID (not common/organizations/consumers) when ALLOWED_EMAIL_DOMAINS is set.");
+}
+
+const microsoft = microsoftConfigured
+  ? {
+      clientId: process.env.MICROSOFT_CLIENT_ID!,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
+      tenantId: microsoftTenant || "common",
+    }
+  : null;
 
 const google =
   process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET

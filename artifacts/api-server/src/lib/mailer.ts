@@ -3,6 +3,9 @@ import { logger } from "./logger";
 
 let transport: Transporter | null = null;
 
+/** Captured outgoing mail when NODE_ENV=test (lets tests read verification links). */
+export const testOutbox: Mail[] = [];
+
 function getTransport(): Transporter | null {
   if (!process.env.SMTP_URL) return null;
   return (transport ??= nodemailer.createTransport(process.env.SMTP_URL));
@@ -21,6 +24,10 @@ export interface Mail {
  * verification links) to the console; production refuses to pretend.
  */
 export async function sendMail(mail: Mail): Promise<void> {
+  if (process.env.NODE_ENV === "test") {
+    testOutbox.push(mail);
+    return;
+  }
   const t = getTransport();
   if (!t) {
     if (process.env.NODE_ENV === "production") {

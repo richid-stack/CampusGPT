@@ -17,6 +17,22 @@ jobs:
     name: Typecheck & build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: campusgpt
+          POSTGRES_PASSWORD: campusgpt
+          POSTGRES_DB: campusgpt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U campusgpt"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://campusgpt:campusgpt@localhost:5432/campusgpt
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -29,6 +45,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm run typecheck
+      - name: Create database schema
+        run: pnpm db:push
       - name: Test
         run: pnpm -r --if-present run test
       - name: Build
@@ -61,6 +79,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:

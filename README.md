@@ -98,8 +98,8 @@ The Vite dev server proxies `/api` to the API, so there is nothing else to confi
 Accounts are restricted to student email addresses (`ALLOWED_EMAIL_DOMAINS`, default `st.ug.edu.gh`). Students sign up with their student email and open the verification link we send to it, which proves they own the mailbox. Microsoft and Google buttons appear automatically when their keys are set (see `.env.example`).
 
 - **Locally:** `docker compose up -d db mailpit` and read verification emails at http://localhost:8025. With no `SMTP_URL`, development prints the link in the API log instead.
-- **Production:** set `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `BETTER_AUTH_URL` (your public URL) and `SMTP_URL` (any SMTP provider). The server refuses to start without them.
-- **Microsoft sign-in:** register an app in the Microsoft Entra admin center with redirect URI `<BETTER_AUTH_URL>/api/auth/callback/microsoft`. Set `MICROSOFT_TENANT_ID` to your university's tenant to accept only its accounts. Your university's IT may need to approve the app.
+- **Production:** set `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `BETTER_AUTH_URL` (your public URL), `SMTP_URL` (any SMTP provider) and `ALLOWED_EMAIL_DOMAINS`. The server refuses to start without them, so a misconfigured deploy fails loudly instead of letting strangers in or silently not sending email.
+- **Microsoft sign-in:** register an app in the Microsoft Entra admin center with redirect URI `<BETTER_AUTH_URL>/api/auth/callback/microsoft`. `MICROSOFT_TENANT_ID` must be your university's specific tenant ID (the server refuses `common`, which would let any Microsoft account claim any email). Your university's IT may need to approve the app.
 - Each user's chats, documents, planner, timetable, notifications and profile are private to them. Rows created before accounts existed have no owner and are hidden.
 
 ## Run everything in Docker
@@ -109,7 +109,7 @@ cp .env.example .env        # add your GROQ_API_KEY
 docker compose up --build   # app on http://localhost:8080
 ```
 
-This builds one image that serves the API and the built frontend from a single origin, creates the tables, and starts PostgreSQL.
+This builds one image that serves the API and the built frontend from a single origin, creates the tables, and starts PostgreSQL and a Mailpit mail catcher (read emails at http://localhost:8025). It is a local setup, not a production deployment: ports bind to `127.0.0.1`, and it uses a built-in local-only auth secret unless you set `BETTER_AUTH_SECRET` in `.env`. Emails go to Mailpit unless you set `DOCKER_SMTP_URL`.
 
 ---
 

@@ -1,5 +1,10 @@
-# `docker compose up --build`  → full app on http://localhost:8080
-# `docker compose up db`       → just Postgres, for `pnpm dev`
+# Local full stack (NOT a production deployment):
+#   docker compose up --build   → app on http://localhost:8080, read emails at http://localhost:8025
+#   docker compose up -d db mailpit → just Postgres + a mail catcher, for `pnpm dev`
+#
+# Ports are bound to 127.0.0.1 so nothing is exposed to your network. Verification
+# and reset emails go to Mailpit unless you set DOCKER_SMTP_URL to a real SMTP URL.
+# Set BETTER_AUTH_SECRET in .env for anything beyond local use.
 services:
   db:
     image: postgres:16-alpine
@@ -8,7 +13,7 @@ services:
       POSTGRES_PASSWORD: campusgpt
       POSTGRES_DB: campusgpt
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,8 +26,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
 
   migrate:
     build:
@@ -39,7 +44,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     env_file:
       - path: .env
         required: false
@@ -47,17 +52,16 @@ services:
       DATABASE_URL: postgresql://campusgpt:campusgpt@db:5432/campusgpt
       PORT: "8080"
       BETTER_AUTH_URL: ${DOCKER_BETTER_AUTH_URL:-http://localhost:8080}
-      SMTP_URL: ${SMTP_URL_DOCKER:-smtp://mailpit:1025}
+      # Local-only default so `docker compose up` works out of the box. Safe
+      # because ports above are loopback-only; override it in .env otherwise.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-local-compose-only-secret-change-me-0123456789}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-st.ug.edu.gh}
+      SMTP_URL: ${DOCKER_SMTP_URL:-smtp://mailpit:1025}
     depends_on:
-      # Catches outgoing email locally. Open http://localhost:8025 to read it.
-  mailpit:
-    image: axllent/mailpit:latest
-    ports:
-      - "1025:1025"
-      - "8025:8025"
-
-  migrate:
+      migrate:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_started
 
 volumes:
   pgdata:

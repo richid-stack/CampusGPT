@@ -63,7 +63,8 @@ export default function Login() {
         // useSession in AuthGate picks up the new session and swaps screens.
       } else if (mode === 'forgot') {
         // Same message whether or not the account exists (no account enumeration).
-        await authClient.requestPasswordReset({ email: email.trim(), redirectTo: appUrl('/reset-password') });
+        const { error } = await authClient.requestPasswordReset({ email: email.trim(), redirectTo: appUrl('/reset-password') });
+        if (error) throw error;
         go('reset-sent');
       }
     } catch (err) {
