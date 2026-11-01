@@ -1,5 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth";
@@ -44,17 +44,28 @@ function Router() {
 function AuthGate() {
   const { data: session, isPending } = authClient.useSession();
   const queryClient = useQueryClient();
-  const userId = session?.user.id ?? null;
+  // better-auth briefly reports isPending again whenever the session is
+  // refetched (e.g. right after sign-up). Only the very first load shows the
+  // splash; later refetches keep showing the current screen so the sign-in
+  // form doesn't unmount and lose what the user typed.
+  const [loadedOnce, setLoadedOnce] = useState(false);
+  const lastSession = useRef(session);
+  if (!isPending) lastSession.current = session;
+  useEffect(() => { if (!isPending) setLoadedOnce(true); }, [isPending]);
+
+  const current = isPending ? lastSession.current : session;
+  const userId = current?.user.id ?? null;
   // Never show one user's cached data to the next person who signs in.
   useEffect(() => { queryClient.clear(); }, [userId, queryClient]);
-  if (isPending) {
+
+  if (!loadedOnce && isPending) {
     return (
       <div className="h-full flex items-center justify-center bg-background" role="status" aria-label="Loading">
-        <Loader2 className="w-6 h-6 animate-spin text-text-tertiary" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
-  if (!session) return <Login />;
+  if (!current) return <Login />;
   return <Router />;
 }
 

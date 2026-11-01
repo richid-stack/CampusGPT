@@ -6,7 +6,7 @@ import { useAuthConfig } from '@/hooks/useAuthConfig';
 type Mode = 'signin' | 'signup' | 'forgot' | 'check-inbox' | 'reset-sent';
 
 const inputClass =
-  'w-full h-11 px-3.5 rounded-xl border border-border bg-background text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500';
+  'w-full h-11 px-3.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary';
 
 function MicrosoftIcon() {
   return (
@@ -95,9 +95,9 @@ export default function Login() {
     <div className="min-h-full flex items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="inline-flex w-12 h-12 rounded-2xl bg-brand-500 text-white items-center justify-center font-semibold text-lg mb-4">C</div>
-          <h1 className="text-2xl font-semibold text-text-primary tracking-tight">CampusGPT</h1>
-          <p className="text-sm text-text-secondary mt-1">Your campus, in conversation.</p>
+          <div className="inline-flex w-12 h-12 rounded-2xl bg-primary text-white items-center justify-center font-semibold text-lg mb-4">C</div>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight">CampusGPT</h1>
+          <p className="text-sm text-muted-foreground mt-1">Your campus, in conversation.</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">{children}</div>
       </div>
@@ -108,23 +108,23 @@ export default function Login() {
     const reset = mode === 'reset-sent';
     return card(
       <div className="text-center space-y-3">
-        <div className="mx-auto w-11 h-11 rounded-full bg-brand-500/10 text-brand-500 flex items-center justify-center">
+        <div className="mx-auto w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center">
           <MailCheck className="w-5 h-5" />
         </div>
-        <h2 className="text-lg font-semibold text-text-primary">{reset ? 'Check your email' : 'Verify your student email'}</h2>
-        <p className="text-sm text-text-secondary">
+        <h2 className="text-lg font-semibold text-foreground">{reset ? 'Check your email' : 'Verify your student email'}</h2>
+        <p className="text-sm text-muted-foreground">
           {reset
-            ? <>If an account exists for <span className="font-medium text-text-primary">{email}</span>, we've sent a link to reset your password.</>
-            : <>We sent a link to <span className="font-medium text-text-primary">{email}</span>. Open it to finish signing in. It may take a minute to arrive.</>}
+            ? <>If an account exists for <span className="font-medium text-foreground">{email}</span>, we've sent a link to reset your password.</>
+            : <>We sent a link to <span className="font-medium text-foreground">{email}</span>. Open it to finish signing in. It may take a minute to arrive.</>}
         </p>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         {!reset && (
-          <button onClick={resend} disabled={busy} className="text-sm font-medium text-brand-500 hover:underline disabled:opacity-50">
+          <button onClick={resend} disabled={busy} className="text-sm font-medium text-primary hover:underline disabled:opacity-50">
             {busy ? 'Sending…' : 'Resend email'}
           </button>
         )}
         <div>
-          <button onClick={() => go('signin')} className="text-sm text-text-secondary hover:text-text-primary">Back to sign in</button>
+          <button onClick={() => go('signin')} className="text-sm text-muted-foreground hover:text-foreground">Back to sign in</button>
         </div>
       </div>
     );
@@ -140,7 +140,7 @@ export default function Login() {
               role="tab"
               aria-selected={mode === m}
               onClick={() => go(m)}
-              className={`h-9 rounded-lg text-sm font-medium transition-colors ${mode === m ? 'bg-card shadow-sm text-text-primary border border-border' : 'text-text-secondary hover:text-text-primary border border-transparent'}`}
+              className={`h-9 rounded-lg text-sm font-medium transition-colors ${mode === m ? 'bg-card shadow-sm text-foreground border border-border' : 'text-muted-foreground hover:text-foreground border border-transparent'}`}
             >
               {m === 'signin' ? 'Sign in' : 'Create account'}
             </button>
@@ -150,8 +150,8 @@ export default function Login() {
 
       {mode === 'forgot' && (
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Reset your password</h2>
-          <p className="text-sm text-text-secondary mt-1">Enter your student email and we'll send you a link.</p>
+          <h2 className="text-lg font-semibold text-foreground">Reset your password</h2>
+          <p className="text-sm text-muted-foreground mt-1">Enter your student email and we'll send you a link.</p>
         </div>
       )}
 
@@ -159,17 +159,17 @@ export default function Login() {
         <>
           <div className="space-y-2">
             {providers.includes('microsoft') && (
-              <button type="button" onClick={() => social('microsoft')} className="w-full h-11 rounded-xl border border-border bg-background hover:bg-card text-sm font-medium text-text-primary flex items-center justify-center gap-2.5 transition-colors">
+              <button type="button" onClick={() => social('microsoft')} className="w-full h-11 rounded-xl border border-border bg-background hover:bg-card text-sm font-medium text-foreground flex items-center justify-center gap-2.5 transition-colors">
                 <MicrosoftIcon /> Continue with Microsoft
               </button>
             )}
             {providers.includes('google') && (
-              <button type="button" onClick={() => social('google')} className="w-full h-11 rounded-xl border border-border bg-background hover:bg-card text-sm font-medium text-text-primary flex items-center justify-center gap-2.5 transition-colors">
+              <button type="button" onClick={() => social('google')} className="w-full h-11 rounded-xl border border-border bg-background hover:bg-card text-sm font-medium text-foreground flex items-center justify-center gap-2.5 transition-colors">
                 <GoogleIcon /> Continue with Google
               </button>
             )}
           </div>
-          <div className="flex items-center gap-3 my-4 text-xs text-text-tertiary">
+          <div className="flex items-center gap-3 my-4 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" /> or use email <div className="h-px flex-1 bg-border" />
           </div>
         </>
@@ -178,12 +178,12 @@ export default function Login() {
       <form onSubmit={submit} className="space-y-3">
         {isSignup && (
           <label className="block">
-            <span className="text-xs font-medium text-text-secondary">Full name</span>
+            <span className="text-xs font-medium text-muted-foreground">Full name</span>
             <input className={`${inputClass} mt-1`} value={name} onChange={e => setName(e.target.value)} autoComplete="name" required />
           </label>
         )}
         <label className="block">
-          <span className="text-xs font-medium text-text-secondary">Student email</span>
+          <span className="text-xs font-medium text-muted-foreground">Student email</span>
           <input
             className={`${inputClass} mt-1`}
             type="email"
@@ -196,7 +196,7 @@ export default function Login() {
         </label>
         {mode !== 'forgot' && (
           <label className="block">
-            <span className="text-xs font-medium text-text-secondary">Password</span>
+            <span className="text-xs font-medium text-muted-foreground">Password</span>
             <input
               className={`${inputClass} mt-1`}
               type="password"
@@ -206,13 +206,13 @@ export default function Login() {
               minLength={8}
               required
             />
-            {isSignup && <span className="text-xs text-text-tertiary mt-1 block">At least 8 characters.</span>}
+            {isSignup && <span className="text-xs text-muted-foreground mt-1 block">At least 8 characters.</span>}
           </label>
         )}
 
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
-        <button type="submit" disabled={busy} className="w-full h-11 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+        <button type="submit" disabled={busy} className="w-full h-11 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
           {busy && <Loader2 className="w-4 h-4 animate-spin" />}
           {mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
         </button>
@@ -220,13 +220,13 @@ export default function Login() {
 
       <div className="mt-4 text-center text-sm">
         {mode === 'signin' && (
-          <button onClick={() => go('forgot')} className="text-text-secondary hover:text-text-primary">Forgot your password?</button>
+          <button onClick={() => go('forgot')} className="text-muted-foreground hover:text-foreground">Forgot your password?</button>
         )}
         {mode === 'forgot' && (
-          <button onClick={() => go('signin')} className="text-text-secondary hover:text-text-primary">Back to sign in</button>
+          <button onClick={() => go('signin')} className="text-muted-foreground hover:text-foreground">Back to sign in</button>
         )}
         {isSignup && domains.length > 0 && (
-          <p className="text-xs text-text-tertiary">Only {domains.map(d => `@${d}`).join(', ')} emails can sign up.</p>
+          <p className="text-xs text-muted-foreground">Only {domains.map(d => `@${d}`).join(', ')} emails can sign up.</p>
         )}
       </div>
     </>

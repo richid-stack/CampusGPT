@@ -126,7 +126,7 @@ export default function Settings() {
             <div className="pt-6 border-t border-border">
               <button
                 onClick={signOut}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border text-text-secondary hover:text-text-primary hover:bg-card transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
               >
                 <LogOut className="w-4 h-4" /> Sign out
               </button>

@@ -21,6 +21,10 @@ if (isProd && (!secret || secret.length < 32)) {
   throw new Error("BETTER_AUTH_SECRET must be set (32+ chars) in production. Generate one with: openssl rand -base64 32");
 }
 
+if (isProd && !process.env.SMTP_URL) {
+  throw new Error("SMTP_URL must be set in production: students cannot verify their email without it (e.g. smtp://user:pass@smtp.provider.com:587).");
+}
+
 const baseURL = process.env.BETTER_AUTH_URL ?? `http://localhost:${port}`;
 
 const corsOrigins = (process.env.CORS_ORIGINS ?? "")
