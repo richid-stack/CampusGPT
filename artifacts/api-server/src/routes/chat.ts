@@ -3,8 +3,9 @@ import type Groq from "groq-sdk";
 import { getGroq } from "../lib/groq.js";
 import { db } from "@workspace/db";
 import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc, desc } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
+import { findOwnedThread } from "../lib/ownership.js";
 import { makeThinkFilter } from "../lib/thinkFilter.js";
 import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
 
@@ -74,6 +75,7 @@ router.post("/threads/:threadId/chat", async (req, res) => {
     imageMime?: string;     // e.g. "image/jpeg"
   };
   if (!content?.trim() && !imageBase64) { res.status(400).json({ error: "Missing content" }); return; }
+  if (!(await findOwnedThread(threadId, req.userId!))) { res.status(404).json({ error: "Not found" }); return; }
 
   const text = content?.trim() ?? "";
   const hasImage = !!imageBase64;
@@ -130,6 +132,7 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
     const uploadedDocs = await db
       .select({ name: documentsTable.name, type: documentsTable.type, pageCount: documentsTable.pageCount })
       .from(documentsTable)
+      .where(eq(documentsTable.userId, req.userId!))
       .orderBy(asc(documentsTable.createdAt));
     const documentContext = uploadedDocs.length
       ? `\n\n## Student Documents Available in This Workspace\n${uploadedDocs.map(d => `- ${d.name} (${d.type}${d.pageCount ? `, ${d.pageCount} pages` : ""})`).join("\n")}\nThese documents persist across conversations. If a student asks about one, say whether you have enough extracted content to answer; do not invent document text.`

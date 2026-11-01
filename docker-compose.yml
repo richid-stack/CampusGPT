@@ -17,6 +17,13 @@ services:
       timeout: 3s
       retries: 10
 
+  # Catches outgoing email locally. Open http://localhost:8025 to read it.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   migrate:
     build:
       context: .
@@ -39,8 +46,17 @@ services:
     environment:
       DATABASE_URL: postgresql://campusgpt:campusgpt@db:5432/campusgpt
       PORT: "8080"
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+      SMTP_URL: ${SMTP_URL_DOCKER:-smtp://mailpit:1025}
     depends_on:
-      migrate:
+      # Catches outgoing email locally. Open http://localhost:8025 to read it.
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  migrate:
         condition: service_completed_successfully
 
 volumes:

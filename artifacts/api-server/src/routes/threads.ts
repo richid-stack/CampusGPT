@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { threadsTable, messagesTable } from "@workspace/db";
-import { eq, desc, and, or, ilike } from "drizzle-orm";
+import { eq, desc, and, ilike, inArray, sql } from "drizzle-orm";
 import { CreateThreadBody, UpdateThreadBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -10,14 +10,14 @@ router.get("/threads", async (req, res) => {
   const pinned = req.query.pinned === "true" ? true : req.query.pinned === "false" ? false : undefined;
   const space = req.query.space as string | undefined;
 
-  const conditions = [];
+  const conditions = [eq(threadsTable.userId, req.userId!)];
   if (pinned !== undefined) conditions.push(eq(threadsTable.pinned, pinned));
   if (space) conditions.push(eq(threadsTable.space, space));
 
   const threads = await db
     .select()
     .from(threadsTable)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(threadsTable.updatedAt));
 
   res.json(threads.map(t => ({
@@ -35,6 +35,7 @@ router.post("/threads", async (req, res) => {
     return;
   }
   const [thread] = await db.insert(threadsTable).values({
+    userId: req.userId!,
     title: parsed.data.title,
     space: parsed.data.space ?? "my_campus",
   }).returning();
@@ -50,7 +51,8 @@ router.get("/threads/recent", async (req, res) => {
   const threads = await db
     .select()
     .from(threadsTable)
-    .orderBy(desc(threadsTable.lastMessageAt))
+    .where(eq(threadsTable.userId, req.userId!))
+    .orderBy(sql`${threadsTable.lastMessageAt} DESC NULLS LAST`, desc(threadsTable.updatedAt))
     .limit(5);
   res.json(threads.map(t => ({
     ...t,
@@ -71,18 +73,19 @@ router.get("/threads/search", async (req, res) => {
   const matchingMessages = await db
     .select({ threadId: messagesTable.threadId })
     .from(messagesTable)
-    .where(ilike(messagesTable.content, pattern));
+    .innerJoin(threadsTable, eq(messagesTable.threadId, threadsTable.id))
+    .where(and(eq(threadsTable.userId, req.userId!), ilike(messagesTable.content, pattern)));
 
   const ids = [...new Set(matchingMessages.map(m => m.threadId))];
   const titleMatches = await db
     .select()
     .from(threadsTable)
-    .where(ilike(threadsTable.title, pattern))
+    .where(and(eq(threadsTable.userId, req.userId!), ilike(threadsTable.title, pattern)))
     .orderBy(desc(threadsTable.updatedAt));
 
   const titleIds = new Set(titleMatches.map(t => t.id));
   const messageMatches = ids.length
-    ? await db.select().from(threadsTable).where(or(...ids.map(id => eq(threadsTable.id, id))))
+    ? await db.select().from(threadsTable).where(and(eq(threadsTable.userId, req.userId!), inArray(threadsTable.id, ids)))
     : [];
 
   const merged = [...titleMatches, ...messageMatches.filter(t => !titleIds.has(t.id))]
@@ -100,7 +103,7 @@ router.get("/threads/pinned", async (req, res) => {
   const threads = await db
     .select()
     .from(threadsTable)
-    .where(eq(threadsTable.pinned, true))
+    .where(and(eq(threadsTable.userId, req.userId!), eq(threadsTable.pinned, true)))
     .orderBy(desc(threadsTable.updatedAt));
   res.json(threads.map(t => ({
     ...t,
@@ -113,7 +116,7 @@ router.get("/threads/pinned", async (req, res) => {
 router.get("/threads/:threadId", async (req, res) => {
   const id = parseInt(req.params.threadId);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const [thread] = await db.select().from(threadsTable).where(eq(threadsTable.id, id));
+  const [thread] = await db.select().from(threadsTable).where(and(eq(threadsTable.id, id), eq(threadsTable.userId, req.userId!)));
   if (!thread) { res.status(404).json({ error: "Not found" }); return; }
   res.json({
     ...thread,
@@ -131,7 +134,7 @@ router.patch("/threads/:threadId", async (req, res) => {
   const [updated] = await db
     .update(threadsTable)
     .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(threadsTable.id, id))
+    .where(and(eq(threadsTable.id, id), eq(threadsTable.userId, req.userId!)))
     .returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({
@@ -145,7 +148,7 @@ router.patch("/threads/:threadId", async (req, res) => {
 router.delete("/threads/:threadId", async (req, res) => {
   const id = parseInt(req.params.threadId);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(threadsTable).where(eq(threadsTable.id, id));
+  await db.delete(threadsTable).where(and(eq(threadsTable.id, id), eq(threadsTable.userId, req.userId!)));
   res.status(204).end();
 });
 

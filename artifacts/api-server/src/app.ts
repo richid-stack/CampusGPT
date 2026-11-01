@@ -1,7 +1,10 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./auth";
+import { requireAuth } from "./middlewares/requireAuth";
 import pinoHttp from "pino-http";
 import path from "node:path";
 import fs from "node:fs";
@@ -30,9 +33,12 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 // Groq-backed endpoints cost money per call, so they get a much tighter budget.
+// Keyed per signed-in user (students share campus Wi-Fi/NAT, so per-IP would
+// throttle whole halls); falls back to IP for anything unauthenticated.
 const aiLimiter = rateLimit({
   windowMs: 60_000,
   limit: 30,
+  keyGenerator: (req) => req.userId ?? ipKeyGenerator(req.ip ?? ""),
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: { error: "Too many requests, please slow down." },
@@ -61,12 +67,20 @@ app.use(helmet());
 app.use(
   cors({
     origin: allowedOrigins.length > 0 ? allowedOrigins : !isProd,
+    credentials: true,
   }),
 );
+
+app.use("/api", apiLimiter);
+
+// Better Auth (sign-up, sign-in, sessions, OAuth). Must come before express.json().
+app.all("/api/auth/{*splat}", toNodeHandler(auth));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/api", apiLimiter);
+// Everything below needs a signed-in user (except health and /api/config).
+app.use("/api", requireAuth);
 app.use(["/api/threads/:threadId/chat", "/api/stt", "/api/tts"], aiLimiter);
 // AI endpoints need a Groq key; everything else works without one.
 app.use(["/api/threads/:threadId/chat", "/api/stt", "/api/tts"], (_req, res, next) => {

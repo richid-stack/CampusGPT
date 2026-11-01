@@ -1,9 +1,11 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { userTable } from "./auth";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const timetableTable = pgTable("timetable", {
   id: serial("id").primaryKey(),
+  userId: text("user_id").references(() => userTable.id, { onDelete: "cascade" }),
   moduleCode: text("module_code").notNull(),
   moduleName: text("module_name").notNull(),
   type: text("type").notNull().default("lecture"),
@@ -13,7 +15,7 @@ export const timetableTable = pgTable("timetable", {
   venue: text("venue").notNull(),
   color: text("color"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [index("timetable_user_id_idx").on(t.userId)]);
 
 export const insertTimetableSchema = createInsertSchema(timetableTable).omit({ id: true, createdAt: true });
 export type InsertTimetable = z.infer<typeof insertTimetableSchema>;
