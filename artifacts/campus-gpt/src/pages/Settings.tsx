@@ -1,10 +1,18 @@
-import { Settings as SettingsIcon, User, Volume2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, Volume2, LogOut } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { authClient } from '@/lib/auth';
 import { useGetUserProfile } from '@workspace/api-client-react';
 import { useAppStore } from '../store/appStore';
 
 export default function Settings() {
   const { data: profile, isLoading } = useGetUserProfile();
   const { voiceOutputEnabled, setVoiceOutputEnabled } = useAppStore();
+  const queryClient = useQueryClient();
+
+  async function signOut() {
+    await authClient.signOut();
+    queryClient.clear(); // don't leak this user's cached data to the next sign-in
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full bg-background">
@@ -113,6 +121,15 @@ export default function Settings() {
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${voiceOutputEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
+            </div>
+
+            <div className="pt-6 border-t border-border">
+              <button
+                onClick={signOut}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+              >
+                <LogOut className="w-4 h-4" /> Sign out
+              </button>
             </div>
 
             <div className="pt-6 border-t border-border flex justify-end">

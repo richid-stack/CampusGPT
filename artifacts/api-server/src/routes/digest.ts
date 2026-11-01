@@ -5,8 +5,9 @@ import { eq, gte, lte, and, asc } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/digest/today", async (_req, res) => {
-  const [user] = await db.select().from(userProfileTable).limit(1);
+router.get("/digest/today", async (req, res) => {
+  const userId = req.userId!;
+  const [user] = await db.select().from(userProfileTable).where(eq(userProfileTable.userId, userId)).limit(1);
   const now = new Date();
   const jsDay = now.getDay();
   const dayOfWeek = jsDay === 0 ? 6 : jsDay - 1;
@@ -14,7 +15,7 @@ router.get("/digest/today", async (_req, res) => {
   const todayEntries = await db
     .select()
     .from(timetableTable)
-    .where(eq(timetableTable.dayOfWeek, dayOfWeek))
+    .where(and(eq(timetableTable.userId, userId), eq(timetableTable.dayOfWeek, dayOfWeek)))
     .orderBy(asc(timetableTable.startTime));
 
   const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -22,6 +23,7 @@ router.get("/digest/today", async (_req, res) => {
     .select()
     .from(plannerTable)
     .where(and(
+      eq(plannerTable.userId, userId),
       gte(plannerTable.dueAt, now),
       lte(plannerTable.dueAt, sevenDays),
       eq(plannerTable.done, false)

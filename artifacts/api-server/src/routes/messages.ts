@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { messagesTable, threadsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { CreateMessageBody } from "@workspace/api-zod";
+import { findOwnedThread } from "../lib/ownership";
 
 const router = Router();
 
@@ -16,6 +17,7 @@ const formatMsg = (m: typeof messagesTable.$inferSelect) => ({
 router.get("/threads/:threadId/messages", async (req, res) => {
   const threadId = parseInt(req.params.threadId);
   if (isNaN(threadId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  if (!(await findOwnedThread(threadId, req.userId!))) { res.status(404).json({ error: "Not found" }); return; }
   const messages = await db
     .select()
     .from(messagesTable)
@@ -29,6 +31,7 @@ router.post("/threads/:threadId/messages", async (req, res) => {
   if (isNaN(threadId)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = CreateMessageBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
+  if (!(await findOwnedThread(threadId, req.userId!))) { res.status(404).json({ error: "Not found" }); return; }
 
   const [msg] = await db.insert(messagesTable).values({
     threadId,

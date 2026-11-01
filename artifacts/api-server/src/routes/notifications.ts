@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { notificationsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 
 const router = Router();
 
-router.get("/notifications", async (_req, res) => {
-  const notifs = await db.select().from(notificationsTable).orderBy(desc(notificationsTable.createdAt));
+router.get("/notifications", async (req, res) => {
+  const notifs = await db.select().from(notificationsTable).where(eq(notificationsTable.userId, req.userId!)).orderBy(desc(notificationsTable.createdAt));
   res.json(notifs.map(n => ({
     ...n,
     createdAt: n.createdAt.toISOString(),
@@ -19,7 +19,7 @@ router.patch("/notifications/:notificationId/read", async (req, res) => {
   const [updated] = await db
     .update(notificationsTable)
     .set({ read: true })
-    .where(eq(notificationsTable.id, id))
+    .where(and(eq(notificationsTable.id, id), eq(notificationsTable.userId, req.userId!)))
     .returning();
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });

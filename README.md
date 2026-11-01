@@ -33,7 +33,7 @@ CampusGPT is a full-stack, production-ready AI campus assistant. Students can as
 | **AI** | Groq SDK — GPT-OSS 120B / 20B, Qwen 3.6 27B (vision), Whisper (STT), Orpheus (TTS) |
 | **API Contract** | OpenAPI 3 spec + Orval codegen (React Query hooks + Zod schemas) |
 | **Monorepo** | pnpm workspaces |
-| **Auth** | None yet — single shared profile (planned) |
+| **Auth** | Better Auth — verified student email, optional Microsoft/Google |
 
 ---
 
@@ -93,6 +93,15 @@ pnpm dev                    # API on :8080, web on http://localhost:5173
 
 The Vite dev server proxies `/api` to the API, so there is nothing else to configure.
 
+## Sign-in
+
+Accounts are restricted to student email addresses (`ALLOWED_EMAIL_DOMAINS`, default `st.ug.edu.gh`). Students sign up with their student email and open the verification link we send to it, which proves they own the mailbox. Microsoft and Google buttons appear automatically when their keys are set (see `.env.example`).
+
+- **Locally:** `docker compose up -d db mailpit` and read verification emails at http://localhost:8025. With no `SMTP_URL`, development prints the link in the API log instead.
+- **Production:** set `BETTER_AUTH_SECRET` (`openssl rand -base64 32`), `BETTER_AUTH_URL` (your public URL), `SMTP_URL` (any SMTP provider) and `ALLOWED_EMAIL_DOMAINS`. The server refuses to start without them, so a misconfigured deploy fails loudly instead of letting strangers in or silently not sending email.
+- **Microsoft sign-in:** register an app in the Microsoft Entra admin center with redirect URI `<BETTER_AUTH_URL>/api/auth/callback/microsoft`. `MICROSOFT_TENANT_ID` must be your university's specific tenant ID (the server refuses `common`, which would let any Microsoft account claim any email). Your university's IT may need to approve the app.
+- Each user's chats, documents, planner, timetable, notifications and profile are private to them. Rows created before accounts existed have no owner and are hidden.
+
 ## Run everything in Docker
 
 ```bash
@@ -100,7 +109,7 @@ cp .env.example .env        # add your GROQ_API_KEY
 docker compose up --build   # app on http://localhost:8080
 ```
 
-This builds one image that serves the API and the built frontend from a single origin, creates the tables, and starts PostgreSQL.
+This builds one image that serves the API and the built frontend from a single origin, creates the tables, and starts PostgreSQL and a Mailpit mail catcher (read emails at http://localhost:8025). It is a local setup, not a production deployment: ports bind to `127.0.0.1`, and it uses a built-in local-only auth secret unless you set `BETTER_AUTH_SECRET` in `.env`. Emails go to Mailpit unless you set `DOCKER_SMTP_URL`.
 
 ---
 
@@ -190,6 +199,10 @@ To change the language, edit `artifacts/campus-gpt/src/hooks/useVoiceChat.ts`.
 |---|---|---|
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `GROQ_API_KEY` | Yes | Groq API key (get at console.groq.com) |
+| `BETTER_AUTH_SECRET` | Prod | Session signing secret, 32+ chars |
+| `BETTER_AUTH_URL` | Prod | Public site URL (used in email links and OAuth callbacks) |
+| `SMTP_URL` | Prod | SMTP connection URL for verification and reset emails |
+| `ALLOWED_EMAIL_DOMAINS` | No | Comma-separated email domains allowed to sign up (empty = anyone) |
 | `CORS_ORIGINS` | Prod | Comma-separated allowed browser origins (cross-origin disabled in production if unset) |
 | `PORT` | No | API server port (default: 5000) |
 | `NODE_ENV` | No | Set to `production` for production builds |

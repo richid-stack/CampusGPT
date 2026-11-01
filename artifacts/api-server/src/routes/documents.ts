@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { documentsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
 import { CreateDocumentBody } from "@workspace/api-zod";
 
 const router = Router();
@@ -12,8 +12,8 @@ const fmt = (d: typeof documentsTable.$inferSelect) => ({
   createdAt: d.createdAt.toISOString(),
 });
 
-router.get("/documents", async (_req, res) => {
-  const docs = await db.select().from(documentsTable).orderBy(desc(documentsTable.createdAt));
+router.get("/documents", async (req, res) => {
+  const docs = await db.select().from(documentsTable).where(eq(documentsTable.userId, req.userId!)).orderBy(desc(documentsTable.createdAt));
   res.json(docs.map(fmt));
 });
 
@@ -21,6 +21,7 @@ router.post("/documents", async (req, res) => {
   const parsed = CreateDocumentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
   const [doc] = await db.insert(documentsTable).values({
+    userId: req.userId!,
     name: parsed.data.name,
     type: parsed.data.type,
     pageCount: parsed.data.pageCount,
@@ -32,7 +33,7 @@ router.post("/documents", async (req, res) => {
 router.delete("/documents/:documentId", async (req, res) => {
   const id = parseInt(req.params.documentId);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(documentsTable).where(eq(documentsTable.id, id));
+  await db.delete(documentsTable).where(and(eq(documentsTable.id, id), eq(documentsTable.userId, req.userId!)));
   res.status(204).end();
 });
 
