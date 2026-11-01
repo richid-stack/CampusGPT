@@ -3,7 +3,10 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
+import path from "node:path";
+import fs from "node:fs";
 import router from "./routes";
+import { isAiConfigured } from "./lib/groq";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -65,6 +68,21 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", apiLimiter);
 app.use(["/api/threads/:threadId/chat", "/api/stt", "/api/tts"], aiLimiter);
+// AI endpoints need a Groq key; everything else works without one.
+app.use(["/api/threads/:threadId/chat", "/api/stt", "/api/tts"], (_req, res, next) => {
+  if (isAiConfigured()) return next();
+  res.status(503).json({ error: "AI is not configured. Set GROQ_API_KEY in your .env." });
+});
 app.use("/api", router);
+
+// Single-container / local production: serve the built frontend from this server.
+const staticDir = process.env.STATIC_DIR ? path.resolve(process.env.STATIC_DIR) : null;
+if (staticDir && fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, { index: false, maxAge: "1h" }));
+  app.get("/{*splat}", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+}
 
 export default app;

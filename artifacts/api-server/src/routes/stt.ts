@@ -5,12 +5,11 @@
  * Returns: { transcript: string }
  */
 import { Router } from "express";
-import Groq from "groq-sdk";
+import { getGroq } from "../lib/groq.js";
 import multer from "multer";
 import { Readable } from "stream";
 
 const router = Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.post("/stt", upload.single("audio"), async (req, res) => {
@@ -25,7 +24,7 @@ router.post("/stt", upload.single("audio"), async (req, res) => {
     const blob = new Blob([new Uint8Array(buffer)], { type: mime });
     const file = new File([blob], `audio.${ext}`, { type: mime });
 
-    const transcription = await groq.audio.transcriptions.create({
+    const transcription = await getGroq().audio.transcriptions.create({
       file,
       model: "whisper-large-v3-turbo",
       language: "en",

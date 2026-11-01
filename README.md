@@ -71,62 +71,36 @@ CampusGPT is a full-stack, production-ready AI campus assistant. Students can as
 
 ## Prerequisites
 
-- **Node.js** 20+ (22 or 24 recommended)
-- **pnpm** 9+ — install with `npm i -g pnpm`
-- **PostgreSQL** 15+ running locally
-- **Groq API key** — get one free at [console.groq.com](https://console.groq.com)
+- **Node.js** 24 and **pnpm** 10 (`npm i -g pnpm`)
+- **Docker** (easiest way to get PostgreSQL), or your own PostgreSQL 14+
+- **Groq API key** (free at [console.groq.com](https://console.groq.com)) for chat and voice. The app boots without it; AI endpoints return a clear 503.
+
+No Google/Maps key or cloud account is needed to run locally.
 
 ---
 
-## Local Setup (VS Code)
-
-### 1. Clone and install
+## Run locally
 
 ```bash
-git clone <your-repo-url> campusgpt
+git clone https://github.com/richid-stack/CampusGPT campusgpt
 cd campusgpt
 pnpm install
+cp .env.example .env        # add your GROQ_API_KEY
+docker compose up -d db     # PostgreSQL on :5432
+pnpm db:push                # create tables
+pnpm dev                    # API on :8080, web on http://localhost:5173
 ```
 
-### 2. Set environment variables
+The Vite dev server proxies `/api` to the API, so there is nothing else to configure.
 
-Create a `.env` file in the repo root:
-
-```env
-# Required
-DATABASE_URL=postgresql://postgres:password@localhost:5432/campusgpt
-GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
-
-# Optional — set these if running behind a proxy
-PORT=5000           # API server port (default: 5000)
-CORS_ORIGINS=https://your-frontend.example   # comma-separated; required in production for cross-origin browsers
-```
-
-> **Tip:** Copy `.env.example` if it exists, or create the file manually.
-
-### 3. Create and migrate the database
+## Run everything in Docker
 
 ```bash
-# Create the database (psql)
-createdb campusgpt
-
-# Push the Drizzle schema
-pnpm --filter @workspace/db run push
+cp .env.example .env        # add your GROQ_API_KEY
+docker compose up --build   # app on http://localhost:8080
 ```
 
-### 4. Start the development servers
-
-Open **two terminal windows**:
-
-```bash
-# Terminal 1 — API server (port 5000)
-pnpm --filter @workspace/api-server run dev
-
-# Terminal 2 — Frontend (Vite, port auto-assigned)
-pnpm --filter @workspace/campus-gpt run dev
-```
-
-Then open **http://localhost:5173** (or whichever port Vite assigns).
+This builds one image that serves the API and the built frontend from a single origin, creates the tables, and starts PostgreSQL.
 
 ---
 
@@ -135,6 +109,8 @@ Then open **http://localhost:5173** (or whichever port Vite assigns).
 | Command | Description |
 |---|---|
 | `pnpm install` | Install all workspace dependencies |
+| `pnpm dev` | Run API (8080) and web (5173) together |
+| `pnpm db:push` | Apply the Drizzle schema to `DATABASE_URL` |
 | `pnpm run typecheck` | Full TypeScript check across all packages |
 | `pnpm run build` | Build all packages |
 | `pnpm --filter @workspace/api-server run dev` | Start API server in dev mode (hot reload) |
