@@ -12,6 +12,18 @@
   --color-input: var(--border);
   --color-ring: var(--brand-500);
 
+  /* Brand + text + status tokens. Without these, utilities such as
+     bg-brand-500, text-text-primary and text-danger generate no CSS. */
+  --color-brand-50: var(--brand-50);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
   --color-card-border: var(--border);
