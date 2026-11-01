@@ -22,7 +22,7 @@ jobs:
       - name: Skip when ANTHROPIC_API_KEY is not configured
         if: env.HAS_KEY != 'true'
         run: echo "ANTHROPIC_API_KEY not set; skipping Claude review."
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: env.HAS_KEY == 'true'
         with:
           fetch-depth: 1
