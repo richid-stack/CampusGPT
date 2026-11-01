@@ -5,10 +5,9 @@
  * Returns: audio/mpeg stream
  */
 import { Router } from "express";
-import Groq from "groq-sdk";
+import { getGroq } from "../lib/groq.js";
 
 const router = Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Max chars to send to TTS — truncate long AI responses for voice
 const MAX_TTS_CHARS = 800;
@@ -34,7 +33,7 @@ router.post("/tts", async (req, res) => {
   try {
     const cleaned = cleanForSpeech(text);
 
-    const response = await groq.audio.speech.create({
+    const response = await getGroq().audio.speech.create({
       model: "canopylabs/orpheus-v1-english",
       input: cleaned,
       voice: "tara",               // natural English voice

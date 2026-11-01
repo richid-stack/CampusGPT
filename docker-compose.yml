@@ -1,0 +1,47 @@
+# `docker compose up --build`  → full app on http://localhost:8080
+# `docker compose up db`       → just Postgres, for `pnpm dev`
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: campusgpt
+      POSTGRES_PASSWORD: campusgpt
+      POSTGRES_DB: campusgpt
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusgpt"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: build
+    command: ["pnpm", "--filter", "@workspace/db", "run", "push"]
+    environment:
+      DATABASE_URL: postgresql://campusgpt:campusgpt@db:5432/campusgpt
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://campusgpt:campusgpt@db:5432/campusgpt
+      PORT: "8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

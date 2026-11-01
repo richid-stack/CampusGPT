@@ -1,5 +1,6 @@
 import { Router } from "express";
-import Groq from "groq-sdk";
+import type Groq from "groq-sdk";
+import { getGroq } from "../lib/groq.js";
 import { db } from "@workspace/db";
 import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
@@ -8,7 +9,6 @@ import { makeThinkFilter } from "../lib/thinkFilter.js";
 import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
 
 const router = Router();
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ── Models confirmed available on Groq ─────────────────────────────────────
 const MODELS = {
@@ -90,7 +90,7 @@ router.post("/threads/:threadId/chat", async (req, res) => {
 
       // 2. Ask the fast model to extract just the destination name
       try {
-        const extraction = await groq.chat.completions.create({
+        const extraction = await getGroq().chat.completions.create({
           model: MODELS.fast,
           messages: [
             {
@@ -170,7 +170,7 @@ Reply with ONLY the location name — nothing else. If unsure, reply with the mo
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
-    const stream = await groq.chat.completions.create({
+    const stream = await getGroq().chat.completions.create({
       model: modelId,
       messages,
       stream: true,

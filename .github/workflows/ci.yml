@@ -55,6 +55,20 @@ jobs:
       - name: Fail if generated files changed
         run: git diff --exit-code -- lib/api-client-react lib/api-zod
 
+  docker-build:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   secrets-scan:
     name: Secret scan
     runs-on: ubuntu-latest
