@@ -3,7 +3,7 @@ import type Groq from "groq-sdk";
 import { getGroq } from "../lib/groq.js";
 import { db } from "@workspace/db";
 import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
-import { and, eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 import { findOwnedThread } from "../lib/ownership.js";
 import { makeThinkFilter } from "../lib/thinkFilter.js";
