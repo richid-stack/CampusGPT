@@ -1,44 +1,44 @@
 import { useEffect } from 'react';
+import { useLocation } from 'wouter';
 import { useAppStore } from '../store/appStore';
 
+/** App-wide shortcuts. The list shown in Settings must match this. */
 export function useKeyboardShortcuts() {
-  const { 
-    sidebarCollapsed, 
-    setSidebarCollapsed,
-    setCommandPaletteOpen,
-    commandPaletteOpen
-  } = useAppStore();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ⌘\ to toggle sidebar
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.altKey) return;
+      const key = e.key.toLowerCase();
+      const store = useAppStore.getState();
+
+      // ⌘K — command palette
+      if (key === 'k' && !e.shiftKey) {
         e.preventDefault();
-        setSidebarCollapsed(!sidebarCollapsed);
+        store.setCommandPaletteOpen(!store.commandPaletteOpen);
+        return;
       }
-      
-      // ⌘K to open command palette
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      // ⌘\ — show or hide the sidebar
+      if (e.key === '\\') {
         e.preventDefault();
-        setCommandPaletteOpen(true);
+        store.setSidebarCollapsed(!store.sidebarCollapsed);
+        return;
       }
-      
-      // ⌘N to trigger new chat
-      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
-        // Only prevent default if we're actually going to handle it
-        // We'll let the Link handle the actual navigation or trigger a programmatic redirect
-        // For now just logging, the actual implementation might need router access
+      // ⇧⌘O — new chat (⌘N is taken by the browser)
+      if (key === 'o' && e.shiftKey) {
+        e.preventDefault();
+        setLocation('/chat/new');
+        return;
       }
-      
-      // Esc to close palette/overlays
-      if (e.key === 'Escape') {
-        if (commandPaletteOpen) {
-          setCommandPaletteOpen(false);
-        }
+      // ⌘, — settings
+      if (e.key === ',') {
+        e.preventDefault();
+        setLocation('/settings');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [sidebarCollapsed, setSidebarCollapsed, setCommandPaletteOpen, commandPaletteOpen]);
+  }, [setLocation]);
 }

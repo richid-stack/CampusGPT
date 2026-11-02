@@ -66,7 +66,7 @@ function AuthGate() {
 
   const splash = (
     <div className="h-full flex items-center justify-center bg-background" role="status" aria-label="Loading">
-      <Loader2 className="w-6 h-6 animate-spin text-text-tertiary" />
+      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
     </div>
   );
   if (!loadedOnce && isPending) return splash;

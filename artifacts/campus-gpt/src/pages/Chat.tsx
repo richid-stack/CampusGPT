@@ -1,126 +1,193 @@
-import { useParams, useSearch } from 'wouter';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useParams } from 'wouter';
+import { useQueryClient } from '@tanstack/react-query';
+import { MoreHorizontal, Pin, PinOff, SquarePen, Trash2 } from 'lucide-react';
+import {
+  getGetPinnedThreadsQueryKey, getGetRecentThreadsQueryKey, getGetThreadQueryKey,
+  useDeleteThread, useGetThread, useListMessages, useUpdateThread,
+} from '@workspace/api-client-react';
+import type { FileUIPart } from 'ai';
 import { ChatThread } from '../components/chat/ChatThread';
 import { Composer } from '../components/chat/Composer';
 import { VoiceCallModal } from '../components/voice/VoiceCallModal';
-import { useChat } from '../hooks/useChat';
-import { useGetThread, useCreateThread } from '@workspace/api-client-react';
-import { useEffect, useRef, useState } from 'react';
+import { PageHeader } from '../components/layout/PageHeader';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useCampusChat } from '../hooks/useCampusChat';
 import { useAppStore } from '../store/appStore';
-import { useLocation } from 'wouter';
-import { useQueryClient } from '@tanstack/react-query';
+import { usePendingMessage } from '../store/pendingMessage';
+import { rowToUIMessage, type CampusMessage } from '../lib/chatTypes';
+import { fetchListMessages } from '../lib/refreshMessages';
 
 export default function Chat() {
   const { threadId } = useParams();
-  const search = useSearch();
-  const id = threadId && threadId !== 'new' ? parseInt(threadId) : null;
-  const { data: thread } = useGetThread(id!, { query: { enabled: !!id } as any });
+  const id = threadId && /^\d+$/.test(threadId) ? parseInt(threadId, 10) : null;
+
+  // Always read the saved conversation fresh when opening it — the live copy
+  // below takes over once it is on screen.
+  const { data: rows, isLoading, isError } = useListMessages(id ?? 0, {
+    query: { enabled: id !== null, gcTime: 0, staleTime: 0, refetchOnMount: 'always' } as any,
+  });
+  const { data: thread } = useGetThread(id ?? 0, { query: { enabled: id !== null } as any });
+
+  const initialMessages = useMemo(() => (rows ?? []).map(rowToUIMessage), [rows]);
+
+  if (id === null || isError) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+          <p className="text-foreground">That conversation could not be found.</p>
+          <Link href="/" className="text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground">
+            Start a new chat
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || !rows) {
+    return (
+      <div className="flex h-full flex-col">
+        <PageHeader />
+        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground" role="status">Loading…</div>
+      </div>
+    );
+  }
+
+  return <ChatSession key={id} threadId={id} title={thread?.title} pinned={Boolean(thread?.pinned)} initialMessages={initialMessages} />;
+}
+
+interface ChatSessionProps {
+  threadId: number;
+  title?: string;
+  pinned: boolean;
+  initialMessages: CampusMessage[];
+}
+
+function ChatSession({ threadId, title, pinned, initialMessages }: ChatSessionProps) {
   const [, setLocation] = useLocation();
-  const createThread = useCreateThread();
   const queryClient = useQueryClient();
+  const setActiveThreadId = useAppStore((s) => s.setActiveThreadId);
+  const takePending = usePendingMessage((s) => s.take);
+  const updateThread = useUpdateThread();
+  const deleteThread = useDeleteThread();
+
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [voiceMode, setVoiceMode] = useState<'chat' | 'walk'>('chat');
-  const didAutoSend = useRef(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const { setRightPanelTab, setActiveThreadId } = useAppStore();
+  const { messages, sendMessage, regenerate, stop, status, error, setMessages } = useCampusChat(threadId, initialMessages);
+  const busy = status === 'submitted' || status === 'streaming';
 
-  const {
-    sendMessage, stopStreaming,
-    isThinking, currentToolChip,
-    isStreaming, streamedContent,
-    streamedModel, streamedModelLabel,
-    navigationCard,
-  } = useChat(id);
-
-  useEffect(() => { if (id) setActiveThreadId(id); }, [id, setActiveThreadId]);
-
-  // Auto-send initial message passed from Home via ?q= query param
   useEffect(() => {
-    if (!id || didAutoSend.current) return;
-    const params = new URLSearchParams(search);
-    const initial = params.get('q');
-    if (!initial) return;
-    didAutoSend.current = true;
-    // Remove the query param from the URL without navigation
-    window.history.replaceState(null, '', `/chat/${id}`);
-    sendMessage(initial, id);
-  }, [id, search, sendMessage]);
+    setActiveThreadId(threadId);
+    return () => setActiveThreadId(null);
+  }, [threadId, setActiveThreadId]);
 
-  const handleCreateThread = async (title: string) => {
-    const newThread = await createThread.mutateAsync({
-      data: { title: title.slice(0, 60), space: 'academic' },
-    });
-    queryClient.invalidateQueries({ queryKey: ['/api/threads/recent'] });
-    return newThread.id;
+  // A first message written on the home screen is sent as soon as this opens.
+  const handedOver = useRef(false);
+  useEffect(() => {
+    if (handedOver.current) return;
+    const pending = takePending(threadId);
+    if (!pending) return;
+    handedOver.current = true;
+    void sendMessage({ text: pending.text, files: pending.files });
+  }, [threadId, takePending, sendMessage]);
+
+  const handleSend = (text: string, files: FileUIPart[]) => {
+    void sendMessage({ text, files });
   };
 
-  const handleSend = async (content: string, imageBase64?: string, imageMime?: string) => {
-    let activeId = id;
-    if (!activeId) {
-      try {
-        activeId = await handleCreateThread(content || 'Image question');
-        setLocation(`/chat/${activeId}`);
-        await sendMessage(content, activeId, undefined, imageBase64, imageMime);
-      } catch { /* ignore */ }
-      return;
-    }
-    await sendMessage(content, undefined, undefined, imageBase64, imageMime);
-    setRightPanelTab('sources');
+  // After a voice session the server has new messages this screen has not seen.
+  const closeVoice = async () => {
+    setVoiceOpen(false);
+    if (busy) return;
+    try {
+      const fresh = await fetchListMessages(queryClient, threadId);
+      setMessages(fresh.map(rowToUIMessage));
+    } catch { /* keep what is on screen */ }
   };
 
-  const handleVoiceCreateThread = async () => {
-    const newId = await handleCreateThread('Voice chat');
-    setLocation(`/chat/${newId}`);
-    return newId;
+  const togglePin = async () => {
+    await updateThread.mutateAsync({ threadId, data: { pinned: !pinned } });
+    void queryClient.invalidateQueries({ queryKey: getGetThreadQueryKey(threadId) });
+    void queryClient.invalidateQueries({ queryKey: getGetPinnedThreadsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetRecentThreadsQueryKey() });
   };
 
-  const openVoice = (mode: 'chat' | 'walk' = 'chat') => {
-    setVoiceMode(mode);
-    setVoiceOpen(true);
+  const removeThread = async () => {
+    await deleteThread.mutateAsync({ threadId });
+    void queryClient.invalidateQueries({ queryKey: getGetPinnedThreadsQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: getGetRecentThreadsQueryKey() });
+    setLocation('/');
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="hidden md:flex h-14 border-b border-border items-center px-6 shrink-0 bg-background/80 backdrop-blur-sm z-10 sticky top-0">
-        <h1 className="font-semibold text-text-primary truncate flex-1">{thread?.title || 'New Chat'}</h1>
-      </div>
+    <div className="flex h-full flex-col bg-background">
+      <PageHeader
+        title={title || 'New chat'}
+        actions={
+          <>
+            <Link
+              href="/chat/new"
+              aria-label="New chat"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-card"
+            >
+              <SquarePen className="h-[18px] w-[18px]" />
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Conversation options"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-card data-[state=open]:bg-card"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onSelect={() => void togglePin()} className="gap-2.5">
+                  {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                  {pinned ? 'Unpin chat' : 'Pin chat'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="gap-2.5 text-destructive focus:text-destructive">
+                  <Trash2 className="h-4 w-4" /> Delete chat
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
-      {thread?.title && (
-        <div className="flex md:hidden px-4 pt-3 pb-1">
-          <span className="text-sm font-medium text-text-secondary truncate">{thread.title}</span>
-        </div>
-      )}
+      <ChatThread messages={messages} status={status} error={error} onRegenerate={() => void regenerate()} />
 
-      <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        <ChatThread
-          threadId={id ?? 0}
-          isThinking={isThinking}
-          currentToolChip={currentToolChip}
-          isStreaming={isStreaming}
-          streamedContent={streamedContent}
-          streamedModel={streamedModel}
-          streamedModelLabel={streamedModelLabel}
-          navigationCard={navigationCard}
-          onRegenerate={(content) => sendMessage(content)}
-        />
-      </div>
-
-      <div className="shrink-0 bg-gradient-to-t from-background via-background/90 to-transparent pt-4">
+      <div className="shrink-0 bg-gradient-to-t from-background via-background/90 to-transparent pt-2">
         <Composer
-          onSend={(content, imgB64, imgMime) => handleSend(content, imgB64, imgMime)}
-          isStreaming={isStreaming}
-          onStop={stopStreaming}
-          onOpenVoiceCall={openVoice}
+          onSend={handleSend}
+          isStreaming={busy}
+          onStop={() => void stop()}
+          onOpenVoiceCall={(mode = 'chat') => { setVoiceMode(mode); setVoiceOpen(true); }}
         />
       </div>
 
-      {voiceOpen && (
-        <VoiceCallModal
-          threadId={id}
-          onClose={() => setVoiceOpen(false)}
-          onCreateThread={!id ? handleVoiceCreateThread : undefined}
-          initialMode={voiceMode}
-        />
-      )}
+      {voiceOpen && <VoiceCallModal threadId={threadId} onClose={() => void closeVoice()} initialMode={voiceMode} />}
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogDescription>The whole conversation will be removed. This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void removeThread()}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

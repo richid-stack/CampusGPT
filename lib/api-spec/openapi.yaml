@@ -771,12 +771,27 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 120
+        degree:
+          type: string
+          maxLength: 160
+        faculty:
+          type: string
+          maxLength: 160
+        year:
+          type: integer
+          minimum: 1
+          maximum: 8
         hall:
           type: string
+          maxLength: 160
         interests:
           type: array
+          maxItems: 20
           items:
             type: string
+            maxLength: 60
 
     DailyDigest:
       type: object

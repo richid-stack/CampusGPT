@@ -104,7 +104,7 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
       const res = await fetch(`/api/threads/${tid}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: text, mode }),
+        body: JSON.stringify({ message: { parts: [{ type: 'text', text }] }, mode }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error('AI request failed');
@@ -122,8 +122,9 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
+            // The chat stream sends typed events; only the written answer is spoken.
             const payload = JSON.parse(line.slice(6).trim());
-            if (payload.delta) { fullResponse += payload.delta; setAiResponse(fullResponse); }
+            if (payload.type === 'text-delta' && payload.delta) { fullResponse += payload.delta; setAiResponse(fullResponse); }
           } catch { /* skip */ }
         }
       }
@@ -131,7 +132,6 @@ export function useVoiceChat({ threadId, onCreateThread, walkMode = false }: Use
       if (fullResponse) {
         // Strip markdown, nav tags, and emoji for spoken output
         const clean = fullResponse
-          .replace(/<!--NAV:[\s\S]*?-->/g, '')       // strip navigation tag
           .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
           .replace(/#+\s/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1')
           .replace(/`{1,3}[^`]*`{1,3}/g, '')

@@ -1,76 +1,99 @@
 import { create } from 'zustand';
 
-type RightPanelTab = 'sources' | 'artifact' | 'document' | 'timetable' | 'plan';
+export type ThemePreference = 'light' | 'dark' | 'system';
+export type ResolvedTheme = 'light' | 'dark';
+/** Which model answers: pick for me, the deeper one, or the quicker one. */
+export type ChatMode = 'auto' | 'default' | 'fast';
 
 interface AppState {
   sidebarCollapsed: boolean;
-  rightPanelOpen: boolean;
-  rightPanelTab: RightPanelTab;
+  /** The slide-in menu on phones. */
+  mobileSidebarOpen: boolean;
   commandPaletteOpen: boolean;
   activeThreadId: number | null;
-  theme: 'light' | 'dark';
-  streamingMessageId: number | null;
+  themePreference: ThemePreference;
+  /** What the screen is actually showing right now. */
+  theme: ResolvedTheme;
+  chatMode: ChatMode;
   voiceOutputEnabled: boolean;
-  
+
   setSidebarCollapsed: (collapsed: boolean) => void;
-  setRightPanelOpen: (open: boolean) => void;
-  setRightPanelTab: (tab: RightPanelTab) => void;
+  setMobileSidebarOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setActiveThreadId: (id: number | null) => void;
-  setTheme: (theme: 'light' | 'dark') => void;
-  setStreamingMessageId: (id: number | null) => void;
+  setThemePreference: (preference: ThemePreference) => void;
+  setChatMode: (mode: ChatMode) => void;
   setVoiceOutputEnabled: (enabled: boolean) => void;
 }
 
-const getInitialTheme = (): 'light' | 'dark' => {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark') return saved;
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
-  }
-  return 'light';
+// Browser storage can be missing or blocked (private windows); the app must
+// still work, just without remembering choices.
+function read(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function write(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* not remembered */ }
+}
+
+const systemPrefersDark = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+const resolveTheme = (preference: ThemePreference): ResolvedTheme =>
+  preference === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : preference;
+
+const applyThemeClass = (theme: ResolvedTheme) => {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
 };
 
-const getInitialVoiceOutput = (): boolean => {
-  if (typeof window === 'undefined') return true;
-  return localStorage.getItem('voice-output') !== 'off';
+const getInitialPreference = (): ThemePreference => {
+  const saved = read('theme');
+  return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
 };
+
+const getInitialChatMode = (): ChatMode => {
+  const saved = read('chat-mode');
+  return saved === 'default' || saved === 'fast' ? saved : 'auto';
+};
+
+const initialPreference = typeof window === 'undefined' ? 'system' : getInitialPreference();
 
 export const useAppStore = create<AppState>((set) => ({
   sidebarCollapsed: false,
-  rightPanelOpen: false,
-  rightPanelTab: 'sources',
+  mobileSidebarOpen: false,
   commandPaletteOpen: false,
   activeThreadId: null,
-  theme: getInitialTheme(),
-  streamingMessageId: null,
-  voiceOutputEnabled: getInitialVoiceOutput(),
-  
+  themePreference: initialPreference,
+  theme: typeof window === 'undefined' ? 'light' : resolveTheme(initialPreference),
+  chatMode: typeof window === 'undefined' ? 'auto' : getInitialChatMode(),
+  voiceOutputEnabled: read('voice-output') !== 'off',
+
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
-  setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
-  setRightPanelTab: (tab) => set({ rightPanelTab: tab, rightPanelOpen: true }),
+  setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
   setActiveThreadId: (id) => set({ activeThreadId: id }),
-  setTheme: (theme) => {
-    localStorage.setItem('theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    set({ theme });
+  setThemePreference: (preference) => {
+    write('theme', preference);
+    const theme = resolveTheme(preference);
+    applyThemeClass(theme);
+    set({ themePreference: preference, theme });
   },
-  setStreamingMessageId: (id) => set({ streamingMessageId: id }),
+  setChatMode: (mode) => {
+    write('chat-mode', mode);
+    set({ chatMode: mode });
+  },
   setVoiceOutputEnabled: (enabled) => {
-    localStorage.setItem('voice-output', enabled ? 'on' : 'off');
+    write('voice-output', enabled ? 'on' : 'off');
     set({ voiceOutputEnabled: enabled });
   },
 }));
 
-// Initialize theme class
+// Apply the saved theme on load, and follow the device while set to "System".
 if (typeof window !== 'undefined') {
-  const theme = getInitialTheme();
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-  }
+  applyThemeClass(useAppStore.getState().theme);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (useAppStore.getState().themePreference !== 'system') return;
+    const theme = resolveTheme('system');
+    applyThemeClass(theme);
+    useAppStore.setState({ theme });
+  });
 }

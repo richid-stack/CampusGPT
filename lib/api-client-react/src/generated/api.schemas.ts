@@ -271,8 +271,23 @@ export interface UserProfile {
 }
 
 export interface UserProfileUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   name?: string;
+  /** @maxLength 160 */
+  degree?: string;
+  /** @maxLength 160 */
+  faculty?: string;
+  /**
+     * @minimum 1
+     * @maximum 8
+     */
+  year?: number;
+  /** @maxLength 160 */
   hall?: string;
+  /** @maxItems 20 */
   interests?: string[];
 }
 

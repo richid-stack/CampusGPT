@@ -1,30 +1,34 @@
+import { Globe } from 'lucide-react';
+
 interface SourceCardProps {
-  citation: any;
+  url: string;
+  title?: string;
+  snippet?: string;
 }
 
-export function SourceCard({ citation }: SourceCardProps) {
-  const hostname = citation.domain || (() => {
-    try { return new URL(citation.url).hostname.replace(/^www\./, ''); } catch { return 'UG source'; }
-  })();
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'source';
+  }
+}
+
+/** A link to an official page the answer relies on. */
+export function SourceCard({ url, title, snippet }: SourceCardProps) {
   return (
-    <a 
-      href={citation.url} 
-      target="_blank" 
+    <a
+      href={url}
+      target="_blank"
       rel="noopener noreferrer"
-      className="flex flex-col gap-1 w-[200px] p-3 rounded-lg border border-border bg-card hover:bg-background hover:border-brand-500 transition-all group"
+      className="group flex w-full flex-col gap-1 rounded-xl border border-border bg-card/60 p-3 transition-colors hover:bg-card sm:w-[220px]"
     >
-      <div className="flex items-center gap-2">
-        <div className="w-4 h-4 bg-background border border-border rounded flex items-center justify-center text-[10px] font-bold text-text-secondary group-hover:text-brand-500 transition-colors">
-           {citation.index ?? '↗'}
-        </div>
-         <span className="text-xs font-medium text-text-secondary truncate">{hostname}</span>
-      </div>
-       <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-tight">
-        {citation.title}
-      </div>
-       {citation.snippet && (
-         <p className="text-[11px] text-text-tertiary line-clamp-2 mt-1 leading-snug">{citation.snippet}</p>
-       )}
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <span className="truncate">{hostOf(url)}</span>
+      </span>
+      <span className="line-clamp-2 text-sm font-medium leading-snug text-foreground">{title || hostOf(url)}</span>
+      {snippet && <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">{snippet}</span>}
     </a>
   );
 }
