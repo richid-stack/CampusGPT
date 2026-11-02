@@ -1,10 +1,9 @@
-import { ReactNode, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
-import { ContextPanel } from './ContextPanel';
 import { CommandPalette } from './CommandPalette';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { useAppStore } from '../../store/appStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
-import { Menu, X } from 'lucide-react';
 
 interface AppShellProps {
   children: ReactNode;
@@ -12,54 +11,34 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   useKeyboardShortcuts();
-  const { rightPanelOpen } = useAppStore();
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { sidebarCollapsed, mobileSidebarOpen, setMobileSidebarOpen } = useAppStore();
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground transition-colors duration-300">
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex h-full">
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-background text-foreground">
+      {/* Desktop: slides away when collapsed */}
+      <div
+        className={`hidden h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out md:block ${
+          sidebarCollapsed ? 'w-0' : 'w-[280px]'
+        }`}
+        aria-hidden={sidebarCollapsed}
+        // Keep hidden links out of the tab order.
+        inert={sidebarCollapsed}
+      >
         <Sidebar />
       </div>
 
-      {/* Mobile sidebar overlay */}
-      {mobileSidebarOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex">
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-          <div className="relative z-10 h-full">
-            <Sidebar onNavClick={() => setMobileSidebarOpen(false)} />
-          </div>
-        </div>
-      )}
+      {/* Phone: slide-in menu */}
+      <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+        <SheetContent side="left" className="w-[300px] max-w-[85vw] border-r border-sidebar-border bg-sidebar p-0 [&>button]:hidden">
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <SheetDescription className="sr-only">Navigate CampusGPT</SheetDescription>
+          <Sidebar onNavigate={() => setMobileSidebarOpen(false)} />
+        </SheetContent>
+      </Sheet>
 
-      <main className="flex-1 flex flex-col min-w-0 h-full relative">
-        {/* Mobile header bar */}
-        <div className="flex md:hidden items-center gap-3 px-4 h-14 border-b border-border bg-background/90 backdrop-blur-sm shrink-0 z-10">
-          <button
-            onClick={() => setMobileSidebarOpen(true)}
-            className="p-2 -ml-2 rounded-lg hover:bg-card transition-colors"
-            aria-label="Open menu"
-          >
-            <Menu className="w-5 h-5 text-text-secondary" />
-          </button>
-          <span className="font-semibold text-base text-brand-500">
-            CampusGPT
-          </span>
-        </div>
-
-        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-          {children}
-        </div>
+      <main className="relative flex h-full min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
       </main>
-
-      {rightPanelOpen && (
-        <div className="hidden lg:flex">
-          <ContextPanel />
-        </div>
-      )}
 
       <CommandPalette />
     </div>

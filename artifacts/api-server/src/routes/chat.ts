@@ -1,49 +1,57 @@
 import { Router } from "express";
-import type Groq from "groq-sdk";
-import { getGroq } from "../lib/groq.js";
+import { z } from "zod";
+import {
+  APICallError,
+  createUIMessageStream,
+  pipeUIMessageStreamToResponse,
+  streamText,
+  toUIMessageStream,
+  type ModelMessage,
+} from "ai";
 import { db } from "@workspace/db";
 import { messagesTable, threadsTable, documentsTable } from "@workspace/db";
-import { eq, asc, desc } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { SYSTEM_PROMPT, WALK_WITH_ME_PROMPT } from "../lib/knowledgeBase.js";
 import { findOwnedThread } from "../lib/ownership.js";
-import { makeThinkFilter } from "../lib/thinkFilter.js";
-import { isNavigationIntent, findLocationByName, CAMPUS_LOCATIONS } from "../lib/campusLocations.js";
+import { isNavigationIntent } from "../lib/campusLocations.js";
+import { resolveCampusLocation, toNavDestination } from "../lib/campusLookup.js";
+import { MODELS, MODEL_LABELS, providerOptionsFor, resolveChatModel, selectModel } from "../lib/chatModel.js";
+import {
+  CAMPUS_LOOKUP_TOOL,
+  modelTextOfRow,
+  partsToStore,
+  textOfParts,
+  toThinkingSeconds,
+  type ChatMetadata,
+  type ChatUIMessage,
+} from "../lib/chatMessages.js";
 
 const router = Router();
 
-// ── Models confirmed available on Groq ─────────────────────────────────────
-const MODELS = {
-  default: "openai/gpt-oss-120b",   // flagship — complex reasoning, tools, multilingual
-  fast:    "openai/gpt-oss-20b",    // everyday quick replies
-  vision:  "qwen/qwen3.6-27b",      // image understanding
-};
+const HISTORY_MESSAGES = 16;
+const MAX_IMAGES = 4;
 
-const MODEL_LABELS: Record<string, string> = {
-  "openai/gpt-oss-120b": "GPT OSS · 120B",
-  "openai/gpt-oss-20b":  "GPT OSS · 20B",
-  "qwen/qwen3.6-27b":    "Qwen 3.6 · 27B",
-};
-
-const FAST_KEYWORDS = [
-  "hi", "hello", "thanks", "okay", "ok", "bye", "yes", "no",
-  "sure", "got it", "what is", "who is", "when is", "where is",
-];
-
-function selectModel(content: string, requestedMode?: string, hasImage?: boolean): keyof typeof MODELS {
-  if (hasImage) return "vision";
-  if (requestedMode === "fast" || requestedMode === "walk") return "fast";
-  if (requestedMode === "default" || requestedMode === "smart") return "default";
-  // Short simple queries → fast
-  const lower = content.toLowerCase().trim();
-  if (content.length < 60 && FAST_KEYWORDS.some(k => lower.startsWith(k))) return "fast";
-  return "default";
-}
+/** What the browser may send: text and photos (as data URLs). */
+const TextPart = z.object({ type: z.literal("text"), text: z.string().max(20_000) });
+const ImagePart = z.object({
+  type: z.literal("file"),
+  mediaType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
+  url: z.string().max(7_000_000).regex(/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/),
+  filename: z.string().max(200).optional(),
+});
+const ChatBody = z.object({
+  trigger: z.enum(["submit-message", "regenerate-message"]).default("submit-message"),
+  mode: z.string().max(20).optional(),
+  message: z
+    .object({ parts: z.array(z.union([TextPart, ImagePart])).min(1).max(MAX_IMAGES + 1) })
+    .optional(),
+});
 
 function getCitations(text: string) {
   const query = text.toLowerCase();
   const citations: Array<{ title: string; url: string; snippet?: string }> = [];
   const add = (title: string, url: string, snippet: string) => {
-    if (!citations.some(c => c.title === title)) citations.push({ title, url, snippet });
+    if (!citations.some((c) => c.title === title)) citations.push({ title, url, snippet });
   };
 
   if (/mis|registration|add.?drop|fees|course|ienabler/.test(query)) {
@@ -64,191 +72,226 @@ function getCitations(text: string) {
   return citations;
 }
 
+/** A short, safe message for the student — details stay in the server log. */
+function friendlyError(error: unknown): string {
+  if (APICallError.isInstance(error)) {
+    if (error.statusCode === 429) return "The assistant is busy right now. Please try again in a moment.";
+    if (error.statusCode === 401 || error.statusCode === 403) return "The assistant isn't set up correctly. Please tell the app owner.";
+  }
+  return "The assistant couldn't finish that answer. Please try again.";
+}
+
 router.post("/threads/:threadId/chat", async (req, res) => {
   const threadId = parseInt(req.params.threadId);
   if (isNaN(threadId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { content, mode, imageBase64, imageMime } = req.body as {
-    content?: string;
-    mode?: string;
-    imageBase64?: string;   // base64-encoded image from frontend
-    imageMime?: string;     // e.g. "image/jpeg"
-  };
-  if (!content?.trim() && !imageBase64) { res.status(400).json({ error: "Missing content" }); return; }
+  const parsed = ChatBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid message" }); return; }
+  const { trigger, mode, message } = parsed.data;
+
+  const incomingText = message ? textOfParts(message.parts).trim() : "";
+  const images = (message?.parts ?? []).filter((p): p is z.infer<typeof ImagePart> => p.type === "file");
+  if (trigger === "submit-message" && !incomingText && images.length === 0) {
+    res.status(400).json({ error: "Missing content" });
+    return;
+  }
   if (!(await findOwnedThread(threadId, req.userId!))) { res.status(404).json({ error: "Not found" }); return; }
 
-  const text = content?.trim() ?? "";
-  const hasImage = !!imageBase64;
-
-  // ── Detect navigation intent early (runs in parallel with AI stream) ──────
-  const navIntent = !hasImage && isNavigationIntent(text);
-  let navLocationPromise: Promise<ReturnType<typeof findLocationByName>> | null = null;
-
-  if (navIntent) {
-    navLocationPromise = (async () => {
-      // 1. Try direct alias matching first (fast, no API call)
-      const direct = findLocationByName(text);
-      if (direct) return direct;
-
-      // 2. Ask the fast model to extract just the destination name
-      try {
-        const extraction = await getGroq().chat.completions.create({
-          model: MODELS.fast,
-          messages: [
-            {
-              role: "system",
-              content: `You extract campus location names from user queries about University of Ghana, Legon.
-Known locations: ${CAMPUS_LOCATIONS.map(l => l.name).join(", ")}.
-Reply with ONLY the location name — nothing else. If unsure, reply with the most likely match.`,
-            },
-            { role: "user", content: text },
-          ],
-          stream: false,
-          max_tokens: 20,
-          temperature: 0,
-        });
-        const extracted = extraction.choices[0]?.message?.content?.trim() ?? "";
-        return extracted ? findLocationByName(extracted) : null;
-      } catch {
-        return null;
-      }
-    })();
-  }
+  // Stop generating when the student presses Stop or closes the tab.
+  const abort = new AbortController();
+  res.on("close", () => { if (!res.writableFinished) abort.abort(); });
 
   try {
-    await db.insert(messagesTable).values({ threadId, role: "user", content: text || "[image]" });
+    if (trigger === "regenerate-message") {
+      // Drop the previous answer so the new one replaces it (no duplicate user turn).
+      const [last] = await db
+        .select({ id: messagesTable.id, role: messagesTable.role })
+        .from(messagesTable)
+        .where(eq(messagesTable.threadId, threadId))
+        .orderBy(desc(messagesTable.createdAt), desc(messagesTable.id))
+        .limit(1);
+      if (last?.role === "assistant") {
+        await db.delete(messagesTable).where(and(eq(messagesTable.id, last.id), eq(messagesTable.threadId, threadId)));
+      }
+    } else {
+      const userParts = message!.parts.filter((p) => p.type === "text");
+      await db.insert(messagesTable).values({
+        threadId,
+        role: "user",
+        content: incomingText || "[image]",
+        parts: userParts,
+      });
+    }
     await db.update(threadsTable)
       .set({ lastMessageAt: new Date(), updatedAt: new Date() })
       .where(eq(threadsTable.id, threadId));
 
-    // Newest 20 messages, restored to chronological order. (Ordering ascending
-    // with a limit returned the *first* 20, so long chats never saw the latest turns.)
+    // Newest messages, restored to chronological order. (Ordering ascending
+    // with a limit returns the *first* rows, so long chats never saw the latest turns.)
     const recentRows = await db
       .select().from(messagesTable)
       .where(eq(messagesTable.threadId, threadId))
       .orderBy(desc(messagesTable.createdAt), desc(messagesTable.id))
-      .limit(20);
+      .limit(HISTORY_MESSAGES);
     const history = recentRows.reverse();
 
-    const modelKey = selectModel(text, mode, hasImage);
-    const modelId  = MODELS[modelKey];
+    // The question being answered is the newest user turn.
+    const lastUserRow = [...history].reverse().find((m) => m.role === "user");
+    const questionText = incomingText || (lastUserRow ? modelTextOfRow(lastUserRow.content) : "");
+    const hasImage = images.length > 0;
+
+    const modelKey = selectModel(questionText, mode, hasImage);
+    const modelId = MODELS[modelKey];
+    const modelLabel = MODEL_LABELS[modelId] ?? modelId;
+
     const uploadedDocs = await db
       .select({ name: documentsTable.name, type: documentsTable.type, pageCount: documentsTable.pageCount })
       .from(documentsTable)
       .where(eq(documentsTable.userId, req.userId!))
       .orderBy(asc(documentsTable.createdAt));
     const documentContext = uploadedDocs.length
-      ? `\n\n## Student Documents Available in This Workspace\n${uploadedDocs.map(d => `- ${d.name} (${d.type}${d.pageCount ? `, ${d.pageCount} pages` : ""})`).join("\n")}\nThese documents persist across conversations. If a student asks about one, say whether you have enough extracted content to answer; do not invent document text.`
+      ? `\n\n## Student Documents Available in This Workspace\n${uploadedDocs.map((d) => `- ${d.name} (${d.type}${d.pageCount ? `, ${d.pageCount} pages` : ""})`).join("\n")}\nThese documents persist across conversations. If a student asks about one, say whether you have enough extracted content to answer; do not invent document text.`
       : "";
-    const systemPrompt = (mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT) + documentContext;
+    const basePrompt = (mode === "walk" ? WALK_WITH_ME_PROMPT : SYSTEM_PROMPT) + documentContext;
 
-    // Build message history — earlier turns are plain text
-    const historyMessages: Groq.Chat.ChatCompletionMessageParam[] = history
-      .slice(-8)
-      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+    // Earlier turns are plain text.
+    const messages: ModelMessage[] = history
+      .map((m): ModelMessage => ({ role: m.role as "user" | "assistant", content: modelTextOfRow(m.content) }))
+      .filter((m) => m.content !== "");
 
-    // Replace the last user message with vision content if an image was sent
-    let userMessage: Groq.Chat.ChatCompletionMessageParam;
-    if (hasImage) {
-      userMessage = {
+    // The newest user turn also carries any photos.
+    if (hasImage && messages.length > 0 && messages[messages.length - 1].role === "user") {
+      messages[messages.length - 1] = {
         role: "user",
         content: [
-          ...(text ? [{ type: "text" as const, text }] : []),
-          {
-            type: "image_url" as const,
-            image_url: { url: `data:${imageMime ?? "image/jpeg"};base64,${imageBase64}` },
-          },
+          ...(incomingText ? [{ type: "text" as const, text: incomingText }] : []),
+          ...images.map((img) => ({
+            type: "file" as const,
+            mediaType: img.mediaType,
+            data: img.url.slice(img.url.indexOf(",") + 1),
+          })),
         ],
       };
-      // Remove last history entry (the one we just inserted as plain text) and replace with vision
-      historyMessages.pop();
-      historyMessages.push(userMessage);
     }
 
-    const messages: Groq.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemPrompt },
-      ...historyMessages,
-    ];
+    const navIntent = !hasImage && isNavigationIntent(questionText);
+    const metadata: ChatMetadata = { model: modelId, modelLabel };
+    let thinkingMs = 0;
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
+    const stream = createUIMessageStream<ChatUIMessage>({
+      onError: (error) => {
+        req.log?.error({ err: error }, "Chat stream error");
+        return friendlyError(error);
+      },
+      execute: async ({ writer }) => {
+        writer.write({ type: "start", messageMetadata: metadata });
 
-    const stream = await getGroq().chat.completions.create({
-      model: modelId,
-      messages,
-      stream: true,
-      max_tokens: 4096,
-      temperature: 0.5,
-    });
-
-    const thinkFilter = makeThinkFilter();
-    let fullContent = "";
-
-    for await (const chunk of stream) {
-      const raw = chunk.choices[0]?.delta?.content ?? "";
-      if (!raw) continue;
-      const safe = thinkFilter.filter(raw);
-      if (safe) {
-        fullContent += safe;
-        res.write(`data: ${JSON.stringify({ delta: safe })}\n\n`);
-      }
-    }
-    const tail = thinkFilter.flush();
-    if (tail) {
-      fullContent += tail;
-      res.write(`data: ${JSON.stringify({ delta: tail })}\n\n`);
-    }
-
-    // ── Resolve navigation card (parallel promise was already running) ──────
-    const navLocation = navLocationPromise ? await navLocationPromise : null;
-    const navData = navLocation
-      ? {
-          id: navLocation.id,
-          name: navLocation.name,
-          lat: navLocation.lat,
-          lng: navLocation.lng,
-          description: navLocation.description,
-          address: navLocation.address,
-          category: navLocation.category,
-          nearbyLandmarks: navLocation.nearbyLandmarks,
-          contact: navLocation.contact,
-          hours: navLocation.hours,
-          services: navLocation.services,
+        // Step 1 (only for "where is…" questions): look the place up for real,
+        // so the trace shows it and the answer uses verified details.
+        let placeContext = "";
+        if (navIntent) {
+          const toolCallId = `lookup-${Date.now()}`;
+          writer.write({ type: "tool-input-available", toolCallId, toolName: CAMPUS_LOOKUP_TOOL, input: { query: questionText } });
+          const place = await resolveCampusLocation(questionText, abort.signal);
+          writer.write({ type: "tool-output-available", toolCallId, output: place ? toNavDestination(place) : null });
+          if (place) {
+            placeContext = `\n\n## Verified campus place\nThe student is asking about a place we have verified data for. Use these details and do not contradict them. A map card with directions is shown under your answer, so do not print coordinates.\n${JSON.stringify(toNavDestination(place), null, 2)}`;
+          }
         }
-      : null;
 
-    // Persist navigationCard data embedded in the assistant message content
-    const navTag = navData ? `\n\n<!--NAV:${JSON.stringify(navData)}-->` : "";
-    const savedContent = fullContent + navTag;
+        const result = streamText({
+          model: resolveChatModel(modelId),
+          instructions: basePrompt + placeContext,
+          messages,
+          temperature: 0.5,
+          // Groq counts thinking tokens against this limit, so leave room for the answer.
+          maxOutputTokens: 8192,
+          providerOptions: providerOptionsFor(modelKey),
+          abortSignal: abort.signal,
+        });
 
-    await db.insert(messagesTable).values({
-      threadId,
-      role: "assistant",
-      content: savedContent,
-      citations: getCitations(text),
+        // Time how long the model spends reasoning (shown as "Thought for N seconds").
+        let reasoningSince: number | null = null;
+        const timed = result.stream.pipeThrough(
+          new TransformStream({
+            transform(part, controller) {
+              if (part.type === "reasoning-start" && reasoningSince === null) reasoningSince = Date.now();
+              if (part.type !== "reasoning-start" && part.type !== "reasoning-delta" && reasoningSince !== null) {
+                thinkingMs += Date.now() - reasoningSince;
+                reasoningSince = null;
+              }
+              controller.enqueue(part);
+            },
+          }),
+        );
+
+        const ui = toUIMessageStream<never, ChatUIMessage>({
+          stream: timed,
+          sendStart: false,
+          sendFinish: false,
+          sendReasoning: true,
+          onError: (error) => {
+            req.log?.error({ err: error }, "Model error");
+            return friendlyError(error);
+          },
+        });
+        const reader = ui.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          writer.write(value);
+        }
+
+        // Official links that match the question, shown as sources.
+        getCitations(questionText).forEach((c, i) => {
+          writer.write({
+            type: "source-url",
+            sourceId: `campus-${i}`,
+            url: c.url,
+            title: c.title,
+            providerMetadata: { campusgpt: { snippet: c.snippet ?? "" } },
+          });
+        });
+
+        writer.write({
+          type: "finish",
+          messageMetadata: { ...metadata, ...(thinkingMs > 0 ? { thinkingSeconds: toThinkingSeconds(thinkingMs) } : {}) },
+        });
+      },
+      onEnd: async ({ responseMessage }) => {
+        try {
+          const parts = partsToStore(responseMessage.parts);
+          const text = textOfParts(parts);
+          // Nothing to keep if the student stopped before any answer appeared.
+          if (!text.trim()) return;
+          await db.insert(messagesTable).values({
+            threadId,
+            role: "assistant",
+            content: text,
+            model: modelId,
+            thinkingSeconds: thinkingMs > 0 ? toThinkingSeconds(thinkingMs) : null,
+            parts,
+            citations: getCitations(questionText),
+          });
+          await db.update(threadsTable)
+            .set({ lastMessageAt: new Date(), updatedAt: new Date() })
+            .where(eq(threadsTable.id, threadId));
+        } catch (err) {
+          req.log?.error({ err }, "Failed to save assistant message");
+        }
+      },
     });
-    await db.update(threadsTable)
-      .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-      .where(eq(threadsTable.id, threadId));
 
-    const label = MODEL_LABELS[modelId] ?? modelId;
-
-    // Emit navigationCard event BEFORE done so frontend can render card
-    if (navData) {
-      res.write(`data: ${JSON.stringify({ navigationCard: navData })}\n\n`);
-    }
-
-    res.write(`data: ${JSON.stringify({ done: true, model: modelId, modelLabel: label, mode: modelKey })}\n\n`);
-    res.end();
-  } catch (err: any) {
+    await pipeUIMessageStreamToResponse({
+      response: res,
+      stream,
+      headers: { "X-Accel-Buffering": "no", "Cache-Control": "no-cache, no-transform" },
+    });
+  } catch (err) {
     req.log?.error({ err }, "Chat error");
     if (!res.headersSent) {
       res.status(500).json({ error: "AI service error" });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: "Stream interrupted" })}\n\n`);
+    } else if (!res.writableEnded) {
       res.end();
     }
   }

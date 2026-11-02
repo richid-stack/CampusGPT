@@ -157,6 +157,30 @@
   100% { background-position:  200% 0; }
 }
 
+/* Quiet "thinking" look: a faint breathing dot and text. */
+.ghost-pulse { animation: ghostPulse 1.6s ease-in-out infinite; }
+.ghost-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: ghostPulse 1.6s ease-in-out infinite;
+}
+@keyframes ghostPulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ghost-pulse, .ghost-dot { animation: none; }
+}
+
+/* Reasoning text fades out at the top and bottom edges while it scrolls. */
+.trace-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+
 .blink { animation: blink 1s step-end infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 

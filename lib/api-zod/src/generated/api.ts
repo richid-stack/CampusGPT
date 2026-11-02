@@ -150,6 +150,7 @@ export const ListMessagesResponseItem = zod.object({
   "content": zod.string(),
   "model": zod.string().nullish(),
   "thinkingSeconds": zod.number().nullish(),
+  "parts": zod.array(zod.record(zod.string(), zod.unknown())).nullish().describe('AI SDK UI message parts (text, reasoning, tool steps). Null on messages saved before parts existed.'),
   "citations": zod.array(zod.object({
   "index": zod.number(),
   "title": zod.string(),
@@ -389,10 +390,29 @@ export const GetUserProfileResponse = zod.object({
 /**
  * @summary Update user profile
  */
+export const updateUserProfileBodyNameMax = 120;
+
+export const updateUserProfileBodyDegreeMax = 160;
+
+export const updateUserProfileBodyFacultyMax = 160;
+
+export const updateUserProfileBodyYearMax = 8;
+
+export const updateUserProfileBodyHallMax = 160;
+
+export const updateUserProfileBodyInterestsItemMax = 60;
+
+export const updateUserProfileBodyInterestsMax = 20;
+
+
+
 export const UpdateUserProfileBody = zod.object({
-  "name": zod.string().optional(),
-  "hall": zod.string().optional(),
-  "interests": zod.array(zod.string()).optional()
+  "name": zod.string().min(1).max(updateUserProfileBodyNameMax).optional(),
+  "degree": zod.string().max(updateUserProfileBodyDegreeMax).optional(),
+  "faculty": zod.string().max(updateUserProfileBodyFacultyMax).optional(),
+  "year": zod.number().min(1).max(updateUserProfileBodyYearMax).optional(),
+  "hall": zod.string().max(updateUserProfileBodyHallMax).optional(),
+  "interests": zod.array(zod.string().max(updateUserProfileBodyInterestsItemMax)).max(updateUserProfileBodyInterestsMax).optional()
 })
 
 export const UpdateUserProfileResponse = zod.object({

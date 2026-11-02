@@ -48,7 +48,7 @@ function PhotoCarousel({ lat, lng, name }: { lat: number; lng: number; name: str
 
       {!ok[idx] && !err[idx] && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-6 h-6 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+          <div className="w-6 h-6 rounded-full border-2 border-foreground border-t-transparent animate-spin" />
         </div>
       )}
 
@@ -180,7 +180,7 @@ function EmbeddedMap({
   }, [dest.lat, dest.lng, userLat, userLng]);
 
   if (mapError) return (
-    <div className="w-full h-[220px] rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-text-tertiary text-sm">
+    <div className="w-full h-[220px] rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-muted-foreground text-sm">
       Map unavailable
     </div>
   );
@@ -193,20 +193,20 @@ function StepsDrawer({ steps, onClose }: { steps: NavStep[]; onClose: () => void
   return (
     <div className="absolute inset-0 z-20 bg-card/95 backdrop-blur-sm rounded-2xl p-4 overflow-y-auto animate-in fade-in slide-in-from-bottom-2">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-text-primary text-sm">Step-by-step directions</h3>
+        <h3 className="font-semibold text-foreground text-sm">Step-by-step directions</h3>
         <button onClick={onClose} className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700">
-          <X className="w-4 h-4 text-text-tertiary" />
+          <X className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
       <ol className="space-y-3">
         {steps.map((step, i) => (
           <li key={i} className="flex gap-3 items-start">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-brand-500/10 text-brand-500 text-[11px] font-bold flex items-center justify-center mt-0.5">
+            <span className="shrink-0 w-5 h-5 rounded-full bg-muted text-foreground text-[11px] font-bold flex items-center justify-center mt-0.5">
               {i + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-text-primary leading-snug">{step.instruction}</p>
-              <p className="text-xs text-text-tertiary mt-0.5">{step.distance} · {step.duration}</p>
+              <p className="text-sm text-foreground leading-snug">{step.instruction}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{step.distance} · {step.duration}</p>
             </div>
           </li>
         ))}
@@ -269,12 +269,12 @@ export function NavigationCard({ destination }: NavigationCardProps) {
 
         {/* ── Header ── */}
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center shrink-0 text-xl">
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0 text-xl">
             {categoryEmoji[destination.category] ?? '📍'}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-semibold text-text-primary text-[15px] leading-tight">{destination.name}</h2>
-            <p className="text-xs text-text-tertiary mt-0.5 flex items-center gap-1">
+            <h2 className="font-semibold text-foreground text-[15px] leading-tight">{destination.name}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
               <MapPin className="w-3 h-3 shrink-0" />
               <span className="truncate">{destination.address}</span>
             </p>
@@ -282,23 +282,23 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         </div>
 
         {/* ── Description ── */}
-        <p className="text-sm text-text-secondary leading-relaxed">{destination.description}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">{destination.description}</p>
 
         {/* ── Walking route info ── */}
         {route && (
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-brand-500/5 border border-brand-500/10">
-            <div className="flex items-center gap-1.5 text-brand-500">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted border border-border">
+            <div className="flex items-center gap-1.5 text-foreground">
               <Clock className="w-4 h-4" />
               <span className="font-semibold text-sm">{route.durationText}</span>
             </div>
             <div className="w-px h-4 bg-border" />
-            <div className="flex items-center gap-1.5 text-text-secondary">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
               <Ruler className="w-4 h-4" />
               <span className="text-sm">{route.distanceText}</span>
             </div>
             <div className="ml-auto">
               <button onClick={() => setShowSteps(true)}
-                className="text-xs text-brand-500 font-medium hover:underline">
+                className="text-xs text-foreground font-medium hover:underline">
                 View steps →
               </button>
             </div>
@@ -306,7 +306,7 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         )}
 
         {locDenied && !route && (
-          <p className="text-xs text-text-tertiary bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
+          <p className="text-xs text-muted-foreground bg-zinc-50 dark:bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
             <MapPin className="w-3.5 h-3.5 shrink-0" />
             Enable location to see walking time and turn-by-turn directions
           </p>
@@ -315,7 +315,7 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         {/* ── Interactive Map ── */}
         <div>
           <button onClick={() => setShowMap(v => !v)}
-            className="text-xs text-brand-500 font-medium mb-2 hover:underline">
+            className="text-xs text-foreground font-medium mb-2 hover:underline">
             {showMap ? 'Hide map ↑' : 'Show map ↓'}
           </button>
           {showMap && (
@@ -331,10 +331,10 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         {/* ── Nearby landmarks ── */}
         {destination.nearbyLandmarks.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Nearby</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Nearby</p>
             <div className="flex flex-wrap gap-1.5">
               {destination.nearbyLandmarks.map(l => (
-                <span key={l} className="text-xs px-2 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-text-secondary">
+                <span key={l} className="text-xs px-2 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-muted-foreground">
                   ⭐ {l}
                 </span>
               ))}
@@ -346,32 +346,32 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         {(destination.contact || destination.hours) && (
           <div className="space-y-1.5">
             {destination.hours && (
-              <div className="flex items-start gap-2 text-xs text-text-secondary">
-                <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-text-tertiary" />
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-foreground" />
                 <span>{destination.hours}</span>
               </div>
             )}
             {destination.contact?.phone && (
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Phone className="w-3.5 h-3.5 shrink-0 text-text-tertiary" />
-                <a href={`tel:${destination.contact.phone}`} className="hover:text-brand-500 transition-colors">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Phone className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                <a href={`tel:${destination.contact.phone}`} className="hover:text-foreground transition-colors">
                   {destination.contact.phone}
                 </a>
               </div>
             )}
             {destination.contact?.email && (
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Mail className="w-3.5 h-3.5 shrink-0 text-text-tertiary" />
-                <a href={`mailto:${destination.contact.email}`} className="hover:text-brand-500 transition-colors">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                <a href={`mailto:${destination.contact.email}`} className="hover:text-foreground transition-colors">
                   {destination.contact.email}
                 </a>
               </div>
             )}
             {destination.contact?.website && (
-              <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <Globe className="w-3.5 h-3.5 shrink-0 text-text-tertiary" />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Globe className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                 <a href={`https://${destination.contact.website}`} target="_blank" rel="noopener noreferrer"
-                  className="hover:text-brand-500 transition-colors">
+                  className="hover:text-foreground transition-colors">
                   {destination.contact.website}
                 </a>
               </div>
@@ -382,10 +382,10 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         {/* ── Services ── */}
         {destination.services && destination.services.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">Services</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Services</p>
             <div className="flex flex-wrap gap-1.5">
               {destination.services.map(s => (
-                <span key={s} className="text-xs px-2 py-1 rounded-full border border-border text-text-secondary">
+                <span key={s} className="text-xs px-2 py-1 rounded-full border border-border text-muted-foreground">
                   {s}
                 </span>
               ))}
@@ -396,12 +396,12 @@ export function NavigationCard({ destination }: NavigationCardProps) {
         {/* ── CTA buttons ── */}
         <div className="flex gap-2 pt-1">
           <button onClick={startNav}
-            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl bg-brand-500 hover:bg-brand-500/90 active:scale-[0.98] text-white text-sm font-semibold transition-all">
+            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl bg-foreground hover:opacity-90 active:scale-[0.98] text-background text-sm font-semibold transition-all">
             <Navigation className="w-4 h-4" />
             Start Navigation
           </button>
           <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border hover:bg-zinc-50 dark:hover:bg-zinc-800/60 active:scale-[0.98] text-text-primary text-sm font-medium transition-all">
+            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border hover:bg-zinc-50 dark:hover:bg-zinc-800/60 active:scale-[0.98] text-foreground text-sm font-medium transition-all">
             <ExternalLink className="w-4 h-4" />
             Open in Maps
           </a>

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Citation } from './citation';
+import type { MessagePartsItem } from './messagePartsItem';
 import type { MessageRole } from './messageRole';
 
 export interface Message {
@@ -17,6 +18,11 @@ export interface Message {
   model?: string | null;
   /** @nullable */
   thinkingSeconds?: number | null;
+  /**
+     * AI SDK UI message parts (text, reasoning, tool steps). Null on messages saved before parts existed.
+     * @nullable
+     */
+  parts?: MessagePartsItem[] | null;
   citations?: Citation[];
   followUps?: string[];
   createdAt: string;

@@ -2,10 +2,11 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAppStore } from '../../store/appStore';
 import {
   Search, MessageSquarePlus, Settings, Calendar, BookOpen,
-  Clock, ChevronRight, Hash, ArrowRight,
+  Clock, Hash, ArrowRight,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useGetRecentThreads } from '@workspace/api-client-react';
+import { isMac } from '../../lib/platform';
 
 interface Action {
   id: string;
@@ -42,7 +43,7 @@ export function CommandPalette() {
   const staticActions: Action[] = [
     {
       id: 'new-chat', label: 'New Chat', description: 'Start a fresh conversation',
-      icon: <MessageSquarePlus className="w-4 h-4" />, shortcut: '⌘N',
+      icon: <MessageSquarePlus className="w-4 h-4" />, shortcut: isMac() ? '⇧⌘O' : 'Ctrl+⇧+O',
       action: () => navigate('/chat/new'), category: 'chat',
     },
     {
@@ -62,7 +63,7 @@ export function CommandPalette() {
     },
     {
       id: 'settings', label: 'Settings', description: 'Profile and preferences',
-      icon: <Settings className="w-4 h-4" />, shortcut: '⌘,',
+      icon: <Settings className="w-4 h-4" />, shortcut: isMac() ? '⌘,' : 'Ctrl+,',
       action: () => navigate('/settings'), category: 'navigation',
     },
   ];
@@ -71,7 +72,7 @@ export function CommandPalette() {
   const threadActions: Action[] = (recentThreads ?? []).slice(0, 20).map(t => ({
     id: `thread-${t.id}`,
     label: t.title || 'Untitled',
-    icon: <Hash className="w-4 h-4 text-text-tertiary" />,
+    icon: <Hash className="w-4 h-4 text-muted-foreground" />,
     action: () => navigate(`/chat/${t.id}`),
     category: 'thread' as const,
   }));
@@ -156,17 +157,17 @@ export function CommandPalette() {
       <div className="relative w-full max-w-[580px] bg-card border border-border rounded-2xl shadow-2xl overflow-hidden fade-scale-in">
         {/* Search input */}
         <div className="flex items-center px-4 gap-3 border-b border-border h-14">
-          <Search className="w-4.5 h-4.5 text-text-tertiary shrink-0" />
+          <Search className="w-4.5 h-4.5 text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             autoFocus
             type="text"
             placeholder="Search conversations, go to page, or ask…"
-            className="flex-1 bg-transparent border-none outline-none text-text-primary text-[15px] placeholder:text-text-tertiary"
+            className="flex-1 bg-transparent border-none outline-none text-foreground text-[15px] placeholder:text-muted-foreground"
             value={query}
             onChange={e => setQuery(e.target.value)}
           />
-          <kbd className="text-[11px] text-text-tertiary bg-background border border-border px-1.5 py-0.5 rounded-md font-mono shrink-0">
+          <kbd className="text-[11px] text-muted-foreground bg-background border border-border px-1.5 py-0.5 rounded-md font-mono shrink-0">
             esc
           </kbd>
         </div>
@@ -175,12 +176,12 @@ export function CommandPalette() {
         <div ref={listRef} className="max-h-[min(60vh,400px)] overflow-y-auto p-2">
           {allItems.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-sm text-text-tertiary">No results for "{query}"</p>
+              <p className="text-sm text-muted-foreground">No results for "{query}"</p>
             </div>
           ) : (
             groups.map(group => (
               <div key={group.label} className="mb-2">
-                <p className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider px-3 py-1.5">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 py-1.5">
                   {group.label}
                 </p>
                 {group.items.map(item => {
@@ -193,17 +194,17 @@ export function CommandPalette() {
                       onMouseEnter={() => setSelected(idx)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                         selected === idx
-                          ? 'bg-brand-500 text-white'
-                          : 'text-text-primary hover:bg-background'
+                          ? 'bg-foreground text-background'
+                          : 'text-foreground hover:bg-background'
                       }`}
                     >
-                      <span className={`shrink-0 ${selected === idx ? 'text-white' : 'text-text-tertiary'}`}>
+                      <span className={`shrink-0 ${selected === idx ? 'text-background' : 'text-muted-foreground'}`}>
                         {item.icon}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-[14px] font-medium truncate">{item.label}</p>
                         {item.description && (
-                          <p className={`text-[12px] truncate ${selected === idx ? 'text-white/70' : 'text-text-tertiary'}`}>
+                          <p className={`text-[12px] truncate ${selected === idx ? 'text-background/70' : 'text-muted-foreground'}`}>
                             {item.description}
                           </p>
                         )}
@@ -211,14 +212,14 @@ export function CommandPalette() {
                       {item.shortcut && (
                         <kbd className={`text-[11px] px-1.5 py-0.5 rounded-md font-mono shrink-0 border ${
                           selected === idx
-                            ? 'bg-white/20 border-white/30 text-white'
-                            : 'bg-background border-border text-text-tertiary'
+                            ? 'bg-background/20 border-background/30 text-background'
+                            : 'bg-background border-border text-muted-foreground'
                         }`}>
                           {item.shortcut}
                         </kbd>
                       )}
                       {!item.shortcut && selected === idx && (
-                        <ArrowRight className="w-3.5 h-3.5 text-white/70 shrink-0" />
+                        <ArrowRight className="w-3.5 h-3.5 text-background/70 shrink-0" />
                       )}
                     </button>
                   );
@@ -230,15 +231,15 @@ export function CommandPalette() {
 
         {/* Footer hint */}
         <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border bg-background/50">
-          <span className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <kbd className="bg-card border border-border px-1 py-0.5 rounded text-[10px] font-mono">↑↓</kbd>
             navigate
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <kbd className="bg-card border border-border px-1 py-0.5 rounded text-[10px] font-mono">↵</kbd>
             open
           </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <kbd className="bg-card border border-border px-1 py-0.5 rounded text-[10px] font-mono">esc</kbd>
             close
           </span>

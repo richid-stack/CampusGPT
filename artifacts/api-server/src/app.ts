@@ -76,6 +76,9 @@ app.use("/api", apiLimiter);
 // Better Auth (sign-up, sign-in, sessions, OAuth). Must come before express.json().
 app.all("/api/auth/{*splat}", toNodeHandler(auth));
 
+// Chat messages can carry photos (base64), so this one route accepts larger
+// bodies. It must come before the general parser, which would reject them.
+app.use("/api/threads/:threadId/chat", express.json({ limit: "8mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
